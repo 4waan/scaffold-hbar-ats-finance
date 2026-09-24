@@ -10,12 +10,18 @@
     "test": "forge test -vvv",
     "fuzz": "forge test --match-path 'test/fuzz/*.t.sol' -vvv",
     "invariant": "forge test --match-path 'test/invariant/*.t.sol' -vvv",
-    "bootstrap:testnet": "forge script script/BootstrapTestnet.s.sol:BootstrapTestnet --rpc-url hedera_testnet --broadcast --account hedera-operator --sender $HEDERA_OPERATOR_ADDRESS && node scripts/build-deployment-record.mjs",
+    "bootstrap:testnet": "node scripts/bootstrap-local.mjs",
+    "demo:testnet": "node scripts/demo-testnet.mjs",
+    "publish:testnet": "node scripts/publish-evidence.mjs",
+    "test:runner": "node --test scripts/test/*.test.mjs",
     "verify:deployment": "node scripts/verify-deployment.mjs deployments/testnet.json",
     "check:ats-abi": "node scripts/check-ats-interface.mjs"
   },
   "dependencies": {
     "@hiero-ledger/hiero-contracts": "0.2.0",
     "viem": "2.56.8"
+  },
+  "devDependencies": {
+    "@hiero-ledger/sdk": "2.86.2"
   }
 }

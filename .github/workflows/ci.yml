@@ -10,7 +10,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,6 +23,8 @@ jobs:
         run: corepack enable && corepack prepare yarn@3.2.3 --activate
       - name: Install
         run: yarn install --immutable
+      - name: Validate Harness recipe
+        run: yarn harness:doctor:recipe
       - name: Static checks
         run: yarn format:check && yarn lint && yarn typecheck && yarn check:routes && yarn check:secrets
       - name: Compile contracts
@@ -37,6 +39,8 @@ jobs:
         run: yarn workspace @collateral-rail/nextjs exec playwright install --with-deps chromium
       - name: Browser tests
         run: yarn test:e2e
+      - name: Deterministic Harness validation
+        run: yarn harness:validate
       - name: Gitleaks
         uses: gitleaks/gitleaks-action@v2
         env:

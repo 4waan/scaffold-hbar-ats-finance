@@ -16,3 +16,13 @@ packages/foundry/deployments/testnet.json
 packages/foundry/deployments/latest-addresses.json
 *.pem
 *.key
+
+# hedera-harness (project-centric)
+.harness/runs/
+.harness/runtime/
+.harness/cache/
+.harness/skills/
+.harness-semantic/
+.skill-cache/
+.harness-skills/
+.harness-context/

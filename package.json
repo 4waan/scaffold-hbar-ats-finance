@@ -17,7 +17,8 @@
     "format:check": "prettier --check .",
     "lint": "yarn workspace @collateral-rail/nextjs lint && yarn foundry:fmt",
     "typecheck": "yarn workspace @collateral-rail/nextjs typecheck",
-    "test": "yarn foundry:test",
+    "test": "yarn foundry:test && yarn test:runner",
+    "test:runner": "yarn workspace @collateral-rail/foundry test:runner",
     "test:e2e": "yarn workspace @collateral-rail/nextjs test:e2e",
     "foundry:build": "yarn workspace @collateral-rail/foundry build",
     "foundry:fmt": "yarn workspace @collateral-rail/foundry fmt:check",
@@ -26,12 +27,25 @@
     "foundry:invariant": "yarn workspace @collateral-rail/foundry invariant",
     "next:build": "yarn workspace @collateral-rail/nextjs build",
     "bootstrap:testnet": "yarn workspace @collateral-rail/foundry bootstrap:testnet",
+    "demo:testnet": "yarn workspace @collateral-rail/foundry demo:testnet",
+    "publish:testnet": "yarn workspace @collateral-rail/foundry publish:testnet",
     "verify:deployment": "yarn workspace @collateral-rail/foundry verify:deployment",
     "check:routes": "node scripts/check-routes.mjs && node scripts/check-reference-record.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
-    "check:ats-abi": "yarn workspace @collateral-rail/foundry check:ats-abi"
+    "check:ats-abi": "yarn workspace @collateral-rail/foundry check:ats-abi",
+    "harness:doctor": "hedera-harness doctor .harness/spec.yaml",
+    "harness:doctor:recipe": "hedera-harness doctor .harness/spec.yaml --recipe-only",
+    "harness:validate": "hedera-harness validate .harness/spec.yaml",
+    "harness:run": "hedera-harness run .harness/spec.yaml",
+    "harness:run:judge": "hedera-harness run .harness/judge-proof-spec.yaml",
+    "harness:semantic": "hedera-harness validate-semantic .harness/judge-proof-spec.yaml",
+    "harness:testnet:doctor": "hedera-harness doctor .harness/testnet-spec.yaml",
+    "harness:testnet": "hedera-harness run .harness/testnet-spec.yaml"
   },
   "devDependencies": {
+    "@hiero-ledger/sdk": "2.86.2",
+    "hedera-harness": "1.2.2",
+    "playwright": "1.61.1",
     "prettier": "3.6.2"
   }
 }

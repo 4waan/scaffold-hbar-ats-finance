@@ -1,0 +1,54 @@
+schemaVersion: 2
+
+name: bounty-testnet-evidence
+description: Execute the verified multi-actor lifecycle on Hedera testnet.
+prd: .harness/prds/bounty-evidence-runner.md
+agent: claude
+maxAttempts: 2
+skills:
+  - hss-system-contract
+  - quality-gates
+
+baseline:
+  commands:
+    - name: install
+      command: corepack yarn install --immutable
+      timeoutMs: 600000
+    - name: contracts
+      command: yarn foundry:test
+      timeoutMs: 600000
+    - name: runner-tests
+      command: yarn test:runner
+      timeoutMs: 120000
+
+validators:
+  static: .harness/validators/static.json
+  commands: .harness/validators/yarn.json
+  playwright: .harness/validators/playwright-smoke.yaml
+
+contract: .harness/acceptance-contract.json
+validator:
+  enabled: true
+
+constraints:
+  packageManager: yarn@3.2.3
+  workspaces:
+    - packages/foundry
+    - packages/nextjs
+  forbiddenWorkspaces:
+    - packages/hardhat
+
+chainValidation:
+  enabled: true
+  network: testnet
+  operator:
+    accountIdEnv: HEDERA_OPERATOR_ID
+    privateKeyEnv: HEDERA_OPERATOR_KEY
+  fundingHbar: 250
+  sweepBack: true
+  expose: {}
+  deploy:
+    commands:
+      - name: verified-lifecycle
+        command: yarn demo:testnet
+        timeoutMs: 1200000

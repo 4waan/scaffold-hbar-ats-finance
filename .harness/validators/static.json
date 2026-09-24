@@ -45,9 +45,9 @@
       "contains": [
         "clearingActive: false",
         "internalKycActivated: true",
-        "addIssuer(operator)",
-        "grantKyc(lender",
-        "grantKyc(borrower",
+        "addIssuer(config.operator)",
+        "config.lender, \"collateral-rail-lender\"",
+        "config.borrower, \"collateral-rail-borrower\"",
         "new RailAcceptance(rail)"
       ]
     },

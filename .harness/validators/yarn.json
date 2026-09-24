@@ -8,6 +8,11 @@
       "command": "yarn foundry:test",
       "timeoutMs": 600000
     },
+    {
+      "name": "evidence-runner",
+      "command": "yarn test:runner",
+      "timeoutMs": 120000
+    },
     { "name": "ats-abi", "command": "yarn check:ats-abi", "timeoutMs": 120000 },
     { "name": "web-build", "command": "yarn next:build", "timeoutMs": 600000 },
     { "name": "routes", "command": "yarn check:routes", "timeoutMs": 120000 },

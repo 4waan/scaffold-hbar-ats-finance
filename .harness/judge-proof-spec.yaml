@@ -1,8 +1,8 @@
 schemaVersion: 2
 
-name: bounty-evidence-runner
-description: Build and validate the secure multi-actor testnet evidence runner.
-prd: .harness/prds/bounty-evidence-runner.md
+name: judge-proof-experience
+description: Build and validate the credential-free judge proof experience.
+prd: .harness/prds/judge-proof-experience.md
 agent: claude
 maxAttempts: 2
 skills:
@@ -55,12 +55,8 @@ secretScan:
       pattern: "BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY"
 
 requiredFiles:
-  - packages/foundry/contracts/AtsCollateralRail.sol
-  - packages/foundry/contracts/oracle/PythHbarUsdOracle.sol
-  - packages/foundry/contracts/verifiers/RailAcceptance.sol
+  - packages/nextjs/app/page.tsx
   - packages/nextjs/app/facility/page.tsx
   - packages/nextjs/app/verify/page.tsx
+  - packages/foundry/deployments/reference-testnet.json
   - docs/hedera-integration-field-guide.md
-  - packages/foundry/scripts/demo-testnet.mjs
-  - packages/foundry/scripts/publish-evidence.mjs
-  - template.json
