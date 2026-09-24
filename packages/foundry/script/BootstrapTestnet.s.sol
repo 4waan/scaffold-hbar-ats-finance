@@ -10,8 +10,12 @@ import {RailAcceptance} from "../contracts/verifiers/RailAcceptance.sol";
 
 interface VmBootstrap {
     function envAddress(string calldata name) external view returns (address value);
+    function envOr(string calldata name, address defaultValue) external view returns (address value);
+    function envOr(string calldata name, bytes32 defaultValue) external view returns (bytes32 value);
     function startBroadcast() external;
+    function startBroadcast(uint256 privateKey) external;
     function stopBroadcast() external;
+    function addr(uint256 privateKey) external pure returns (address keyAddr);
     function serializeAddress(string calldata objectKey, string calldata valueKey, address value)
         external
         returns (string memory json);
@@ -22,11 +26,20 @@ interface VmBootstrap {
 }
 
 contract BootstrapTestnet {
+    struct BootstrapConfig {
+        address operator;
+        address lender;
+        address borrower;
+        address resolver;
+        address factory;
+        address pyth;
+    }
+
     VmBootstrap internal constant vm = VmBootstrap(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     address internal constant DEFAULT_RESOLVER = 0xBA2D5FC2083A0b8f164c50e65d782087fBA18E0a;
     address internal constant DEFAULT_FACTORY = 0xd1F118A40f3b02883D35909eF2517e7EDd78379d;
-    address internal constant PYTH = 0xA2aa501b19aff244D90cc15a4Cf739D2725B5729;
+    address internal constant DEFAULT_PYTH = 0xA2aa501b19aff244D90cc15a4Cf739D2725B5729;
     address internal constant HSS = address(0x16b);
     bytes32 internal constant HBAR_USD_PRICE_ID = 0x3728e591097635310e6341af53db8b7ee42da9b3a8d918f9463ce9cca886dfbd;
     bytes32 internal constant DEFAULT_PARTITION = bytes32(uint256(1));
@@ -44,47 +57,66 @@ contract BootstrapTestnet {
     event BootstrapCompleted(address indexed token, address indexed oracle, address indexed rail);
 
     function run() external {
-        address operator = vm.envAddress("HEDERA_OPERATOR_ADDRESS");
-        address lender = vm.envAddress("LENDER_ADDRESS");
-        address borrower = vm.envAddress("BORROWER_ADDRESS");
-        _validateDependencies();
+        BootstrapConfig memory config = _readConfig();
+        _validateDependencies(config.resolver, config.factory, config.pyth);
 
         uint256 maturity = block.timestamp + 730 days;
-        IAtsFactory.BondData memory bond = _bond(operator, maturity);
+        IAtsFactory.BondData memory bond = _bond(config.operator, maturity, config.resolver);
         IAtsFactory.FactoryRegulationData memory regulation = _regulation();
 
-        vm.startBroadcast();
-        address token = IAtsFactory(DEFAULT_FACTORY).deployBond(bond, regulation);
-        if (!IAtsIssuerSetup(token).addIssuer(operator)) {
+        _startBroadcast(config.operator);
+        address token = IAtsFactory(config.factory).deployBond(bond, regulation);
+        if (!IAtsIssuerSetup(token).addIssuer(config.operator)) {
             revert SetupFailed(IAtsIssuerSetup.addIssuer.selector);
         }
-        if (!IAtsIssuerSetup(token).grantKyc(lender, "collateral-rail-lender", block.timestamp, maturity, operator)) {
+        if (!IAtsIssuerSetup(token)
+                .grantKyc(config.lender, "collateral-rail-lender", block.timestamp, maturity, config.operator)) {
             revert SetupFailed(IAtsIssuerSetup.grantKyc.selector);
         }
-        if (!IAtsIssuerSetup(token).grantKyc(borrower, "collateral-rail-borrower", block.timestamp, maturity, operator))
-        {
+        if (!IAtsIssuerSetup(token)
+                .grantKyc(config.borrower, "collateral-rail-borrower", block.timestamp, maturity, config.operator)) {
             revert SetupFailed(IAtsIssuerSetup.grantKyc.selector);
         }
-        IAtsIssuerSetup(token).issue(borrower, 1_000, bytes(""));
+        IAtsIssuerSetup(token).issue(config.borrower, 1_000, bytes(""));
 
-        PythHbarUsdOracle priceOracle = new PythHbarUsdOracle(IPyth(PYTH), HBAR_USD_PRICE_ID);
-        AtsCollateralRail rail =
-            new AtsCollateralRail(IAtsCollateralToken(token), DEFAULT_PARTITION, priceOracle, 0, 100 * 1e8, operator);
-        rail.fundAutomation{value: rail.HSS_RESERVE_TINYBAR()}();
+        PythHbarUsdOracle priceOracle = new PythHbarUsdOracle(IPyth(config.pyth), HBAR_USD_PRICE_ID);
+        AtsCollateralRail rail = new AtsCollateralRail(
+            IAtsCollateralToken(token), DEFAULT_PARTITION, priceOracle, 0, 100 * 1e8, config.operator
+        );
+        rail.fundAutomation{value: 2 * rail.HSS_RESERVE_TINYBAR()}();
         RailAcceptance acceptance = new RailAcceptance(rail);
         vm.stopBroadcast();
 
-        _validateLiveConfiguration(token, operator, lender, borrower, maturity);
-        _writeAddresses(
-            token, address(priceOracle), address(rail), address(acceptance), operator, lender, borrower, maturity
-        );
+        _validateLiveConfiguration(token, config.operator, config.lender, config.borrower, maturity);
+        _writeAddresses(token, address(priceOracle), address(rail), address(acceptance), config, maturity);
         emit BootstrapCompleted(token, address(priceOracle), address(rail));
     }
 
-    function _validateDependencies() internal view {
-        if (DEFAULT_RESOLVER.code.length == 0) revert DependencyUnavailable(DEFAULT_RESOLVER);
-        if (DEFAULT_FACTORY.code.length == 0) revert DependencyUnavailable(DEFAULT_FACTORY);
-        if (PYTH.code.length == 0) revert DependencyUnavailable(PYTH);
+    function _readConfig() internal view returns (BootstrapConfig memory config) {
+        config.operator = vm.envOr("HEDERA_OPERATOR_ADDRESS", address(0));
+        if (config.operator == address(0)) config.operator = vm.envAddress("HARNESS_SIGNER_EVM_ADDRESS");
+        config.lender = vm.envAddress("LENDER_ADDRESS");
+        config.borrower = vm.envAddress("BORROWER_ADDRESS");
+        config.resolver = vm.envOr("ATS_RESOLVER_ADDRESS", DEFAULT_RESOLVER);
+        config.factory = vm.envOr("ATS_FACTORY_ADDRESS", DEFAULT_FACTORY);
+        config.pyth = vm.envOr("PYTH_ADDRESS", DEFAULT_PYTH);
+    }
+
+    function _startBroadcast(address operator) internal {
+        bytes32 harnessKey = vm.envOr("HARNESS_SIGNER_PRIVATE_KEY", bytes32(0));
+        if (harnessKey == bytes32(0)) {
+            vm.startBroadcast();
+            return;
+        }
+        uint256 privateKey = uint256(harnessKey);
+        if (vm.addr(privateKey) != operator) revert ConfigurationMismatch();
+        vm.startBroadcast(privateKey);
+    }
+
+    function _validateDependencies(address resolver, address factory, address pyth) internal view {
+        if (resolver.code.length == 0) revert DependencyUnavailable(resolver);
+        if (factory.code.length == 0) revert DependencyUnavailable(factory);
+        if (pyth.code.length == 0) revert DependencyUnavailable(pyth);
         (bool success, bytes memory result) = HSS.staticcall(
             abi.encodeWithSignature("hasScheduleCapacity(uint256,uint256)", block.timestamp + 10, uint256(750_000))
         );
@@ -109,7 +141,11 @@ contract BootstrapTestnet {
         ) revert ConfigurationMismatch();
     }
 
-    function _bond(address operator, uint256 maturity) internal view returns (IAtsFactory.BondData memory bond) {
+    function _bond(address operator, uint256 maturity, address resolver)
+        internal
+        view
+        returns (IAtsFactory.BondData memory bond)
+    {
         bytes32[4] memory roles = [DEFAULT_ADMIN_ROLE, ROLE_ISSUER, ROLE_KYC, ROLE_SSI_MANAGER];
         IAtsFactory.Rbac[] memory rbacs = new IAtsFactory.Rbac[](roles.length);
         for (uint256 i = 0; i < roles.length; ++i) {
@@ -119,7 +155,7 @@ contract BootstrapTestnet {
         }
 
         IAtsFactory.SecurityData memory security = IAtsFactory.SecurityData({
-            resolver: DEFAULT_RESOLVER,
+            resolver: resolver,
             maxSupply: 1_000_000,
             resolverProxyConfiguration: IAtsFactory.ResolverProxyConfiguration({key: BOND_CONFIG, version: 1}),
             erc20MetadataInfo: IAtsFactory.ERC20MetadataInfo({
@@ -171,9 +207,7 @@ contract BootstrapTestnet {
         address oracle,
         address rail,
         address acceptance,
-        address operator,
-        address lender,
-        address borrower,
+        BootstrapConfig memory config,
         uint256 maturity
     ) internal {
         string memory key = "deployment";
@@ -181,12 +215,12 @@ contract BootstrapTestnet {
         vm.serializeAddress(key, "oracle", oracle);
         vm.serializeAddress(key, "rail", rail);
         vm.serializeAddress(key, "acceptance", acceptance);
-        vm.serializeAddress(key, "factory", DEFAULT_FACTORY);
-        vm.serializeAddress(key, "resolver", DEFAULT_RESOLVER);
-        vm.serializeAddress(key, "pyth", PYTH);
-        vm.serializeAddress(key, "operator", operator);
-        vm.serializeAddress(key, "lender", lender);
-        vm.serializeAddress(key, "borrower", borrower);
+        vm.serializeAddress(key, "factory", config.factory);
+        vm.serializeAddress(key, "resolver", config.resolver);
+        vm.serializeAddress(key, "pyth", config.pyth);
+        vm.serializeAddress(key, "operator", config.operator);
+        vm.serializeAddress(key, "lender", config.lender);
+        vm.serializeAddress(key, "borrower", config.borrower);
         string memory json = vm.serializeUint(key, "assetMaturity", maturity);
         vm.writeJson(json, "./deployments/latest-addresses.json");
     }

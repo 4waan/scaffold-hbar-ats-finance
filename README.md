@@ -31,6 +31,13 @@ Open `http://localhost:3000`. No key or environment file is required. The app
 starts in reference mode, where the architecture, full interaction surface, and
 evidence checklist remain inspectable without enabling writes.
 
+The fastest judge path is:
+
+1. Open `/` and inspect the protected integration seams.
+2. Open `/facility` and select Reference replay.
+3. Open `/verify` and follow the repaid and defaulted evidence to HashScan.
+4. Switch to Live wallet only when using a deployment you control.
+
 Routes:
 
 - `/` explains the architecture, integration health, setup, and reference status.
@@ -97,7 +104,8 @@ the balance above user liabilities and pending HSS reserves.
 
 Privileged ATS setup stays in Foundry. There is no issuer-key web route.
 
-Create an encrypted Foundry keystore:
+Create an encrypted Foundry keystore. You can use the named account and its
+interactive password prompt:
 
 ```sh
 cast wallet import hedera-operator --interactive
@@ -112,6 +120,10 @@ yarn bootstrap:testnet
 yarn verify:deployment
 ```
 
+For unattended local use, set both `HEDERA_KEYSTORE_PATH` and
+`HEDERA_KEYSTORE_PASSWORD_FILE`. The password file path is passed to Foundry,
+but the password and private key never appear in command arguments.
+
 The bootstrap validates the published ATS Resolver and Factory, Pyth, and the
 HSS capacity read. It deploys a checksum-valid test bond with Clearing disabled,
 adds the operator as an SSI issuer, grants internal KYC in the required order,
@@ -119,6 +131,40 @@ issues borrower collateral, deploys the oracle and rail, and funds the HSS reser
 
 Generated deployment records contain public addresses and transaction hashes.
 They never contain calldata, keys, mnemonics, or environment values.
+
+## Harness evidence run
+
+The pinned Harness toolchain is installed at the workspace root. The two build
+increments use separate scalar recipes because Harness 1.2.2 accepts one active
+increment per run.
+
+```sh
+yarn harness:doctor
+yarn harness:validate
+yarn harness:run
+yarn harness:run:judge
+yarn harness:semantic
+```
+
+The real network gate is separate. It requires a funded ECDSA testnet operator
+through `HEDERA_OPERATOR_ID` and `HEDERA_OPERATOR_KEY` in the host process:
+
+```sh
+yarn harness:testnet:doctor
+yarn harness:testnet
+```
+
+Harness provisions a capped 250 HBAR ephemeral signer and exposes it to
+`yarn demo:testnet`. The runner then creates temporary lender and borrower
+accounts, completes both terminal paths, sweeps those accounts, and writes an
+ignored candidate record. Publish only after the completeness and secret gates:
+
+```sh
+yarn publish:testnet
+```
+
+See [testnet-evidence-runner.md](docs/testnet-evidence-runner.md) for every
+input, trust boundary, and failure behavior.
 
 ## Reference evidence
 
@@ -142,6 +188,7 @@ yarn foundry:build
 yarn foundry:test
 yarn foundry:fuzz
 yarn foundry:invariant
+yarn test:runner
 yarn next:build
 yarn test:e2e
 yarn check:routes
