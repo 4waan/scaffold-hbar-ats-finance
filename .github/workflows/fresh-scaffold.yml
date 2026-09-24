@@ -19,6 +19,10 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
       - name: Activate Yarn 3.2.3
         run: corepack enable && corepack prepare yarn@3.2.3 --activate
+      - name: Configure scaffold commit identity
+        run: |
+          git config --global user.name "Collateral Rail CI"
+          git config --global user.email "ci@collateral-rail.invalid"
       - name: Generate from the public template
         run: npm create scaffold-hbar@latest gate-check -- --template 4waan/scaffold-hbar-ats-finance --yes --skip-hedera-skills
       - name: Install and verify generated project
