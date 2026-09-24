@@ -12,12 +12,12 @@
     },
     {
       "id": "C2",
-      "statement": "The facility exposes the complete lender and borrower workflow while keeping writes disabled in reference mode.",
+      "statement": "The facility exposes reference replay and live wallet modes while keeping writes disabled in reference mode.",
       "route": "/facility",
       "severity": "critical",
       "walletRequired": false,
       "verifiableWithoutCredentials": true,
-      "howToVerify": "Open the facility with no environment file. Confirm Pyth update, preview, fund, approve, accept, cancel, repay, settle, and withdraw controls are visible and disabled until live addresses and a wallet exist."
+      "howToVerify": "Open the facility with no environment file. Confirm both mode controls and the Pyth update, preview, fund, approve, accept, cancel, repay, settle, and withdraw controls. Confirm writes remain disabled in reference mode."
     },
     {
       "id": "C3",
@@ -38,12 +38,29 @@
     },
     {
       "id": "C5",
-      "statement": "A live deployment can be verified without trusting simulated entity addresses.",
+      "statement": "The committed testnet lifecycle can be reconstructed without credentials or simulated entity addresses.",
+      "route": "/verify",
+      "severity": "critical",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true,
+      "howToVerify": "Open verify with no wallet. Confirm a repaid and defaulted position, distinct hold IDs, terminal path labels, separate Pyth, ATS, liability, reserve, and HSS facts, plus direct HashScan links for every lifecycle receipt."
+    },
+    {
+      "id": "C6",
+      "statement": "The testnet evidence runner keeps signers process-local and publishes only complete, secret-scanned evidence.",
       "severity": "major",
-      "walletRequired": true,
-      "verifiableWithoutCredentials": false,
-      "executableWithTestSigner": true,
-      "howToVerify": "Run bootstrap with an encrypted Foundry account, then run verify:deployment. Confirm Mirror entities, nonempty successful receipts, ATS KYC and SSI reads, and rail immutable bindings."
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true,
+      "howToVerify": "Inspect demo-testnet.mjs and publish-evidence.mjs. Confirm private keys come only from process environment, child processes use secret-free arguments, endpoint origins are allowlisted, temporary accounts are swept, and publication requires full evidence validation plus gitleaks."
+    },
+    {
+      "id": "C7",
+      "statement": "A developer can scaffold, boot, replay, and verify the reference flow in under five minutes without credentials.",
+      "route": "/",
+      "severity": "major",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true,
+      "howToVerify": "Follow the four-step quick-start path on the overview, boot the app without environment variables, and inspect the facility and verify routes."
     }
   ]
 }

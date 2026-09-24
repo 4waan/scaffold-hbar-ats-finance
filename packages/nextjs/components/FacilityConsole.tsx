@@ -12,6 +12,7 @@ import {
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { addresses, isLiveMode } from "@/lib/chain";
 import { atsAbi, oracleAbi, pythAbi, railAbi } from "@/lib/contracts";
+import { referenceDeployment } from "@/lib/reference";
 
 const PRICE_ID =
   "0x3728e591097635310e6341af53db8b7ee42da9b3a8d918f9463ce9cca886dfbd";
@@ -32,6 +33,7 @@ export function FacilityConsole() {
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync, isPending } = useWriteContract();
+  const [mode, setMode] = useState<"reference" | "live">("reference");
   const [borrower, setBorrower] = useState("");
   const [collateral, setCollateral] = useState("10");
   const [principalUsd, setPrincipalUsd] = useState("70");
@@ -60,7 +62,8 @@ export function FacilityConsole() {
     }
   }, [borrower, collateral, principalUsd, rateBps, termDays]);
 
-  const ready = isLiveMode && isConnected && Boolean(publicClient);
+  const ready =
+    mode === "live" && isLiveMode && isConnected && Boolean(publicClient);
 
   async function run(label: string, action: () => Promise<Hex | void>) {
     try {
@@ -257,12 +260,67 @@ export function FacilityConsole() {
           </div>
         </div>
 
-        {!isLiveMode && (
+        <div className="modeSwitch" aria-label="Facility mode">
+          <button
+            aria-pressed={mode === "reference"}
+            className={mode === "reference" ? "active" : ""}
+            onClick={() => setMode("reference")}
+            type="button"
+          >
+            Reference replay
+          </button>
+          <button
+            aria-pressed={mode === "live"}
+            className={mode === "live" ? "active" : ""}
+            onClick={() => setMode("live")}
+            type="button"
+          >
+            Live wallet
+          </button>
+        </div>
+
+        {mode === "reference" && (
+          <section className="referenceReplay" aria-label="Reference replay">
+            <div>
+              <span className="eyebrow">Public evidence</span>
+              <h2>Replay both terminal paths</h2>
+              <p>
+                This mode reads the committed testnet record. It never needs a
+                wallet or a private key.
+              </p>
+            </div>
+            {referenceDeployment.positions.length === 2 ? (
+              <div className="replayPositions">
+                {referenceDeployment.positions.map((position) => (
+                  <article key={position.id}>
+                    <span>{position.state}</span>
+                    <b>{position.terminalPath.replaceAll("-", " ")}</b>
+                    <small>Hold {position.holdId}</small>
+                    <a
+                      href={`https://hashscan.io/testnet/contract/${referenceDeployment.addresses.rail}`}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Inspect rail on HashScan ↗
+                    </a>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="noticeBox">
+                <b>Evidence pending</b>
+                <span>{referenceDeployment.notice}</span>
+              </div>
+            )}
+          </section>
+        )}
+
+        {mode === "live" && !isLiveMode && (
           <div className="noticeBox">
-            <b>Reference mode</b>
+            <b>Live mode needs public addresses</b>
             <span>
-              The workflow is inspectable without secrets. Set the three public
-              contract addresses to enable transactions.
+              Set the rail, ATS token, and oracle public addresses. Signatures
+              stay in the connected wallet.
             </span>
           </div>
         )}

@@ -1,7 +1,7 @@
 import { access, readFile } from "node:fs/promises";
 
 const routes = [
-  ["packages/nextjs/app/page.tsx", "Finance a security"],
+  ["packages/nextjs/app/page.tsx", "Scaffold the hard part"],
   ["packages/nextjs/app/facility/page.tsx", "FacilityConsole"],
   ["packages/nextjs/app/verify/page.tsx", "VerifyConsole"],
 ];

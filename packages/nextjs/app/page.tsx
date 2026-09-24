@@ -10,6 +10,33 @@ const integrations = [
   ["Mirror Node", "Receipt, entity, and state evidence", true],
 ] as const;
 
+const protectedSeams = [
+  [
+    "Holds, not Clearing",
+    "The ATS is deployed with mutually exclusive Clearing disabled.",
+  ],
+  [
+    "Compliance before custody",
+    "The rail validates KYC, allowance, free balance, and terms before hold creation.",
+  ],
+  [
+    "Post-create inspection",
+    "Every hold is read back and checked for amount, escrow, destination, partition, and expiry.",
+  ],
+  [
+    "Checked HSS responses",
+    "Response code 22, capacity, and a nonzero mined schedule address are all required.",
+  ],
+  [
+    "Permissionless recovery",
+    "No keeper is required. Any account can settle an overdue open position.",
+  ],
+  [
+    "Evidence, not simulation",
+    "Mirror receipts and state reads back every published lifecycle claim.",
+  ],
+] as const;
+
 export default function OverviewPage() {
   const lifecycle = referenceDeployment.lifecycle as Record<
     string,
@@ -22,16 +49,17 @@ export default function OverviewPage() {
   return (
     <main>
       <section className="hero">
-        <div className="eyebrow">Scaffold-HBAR external template</div>
+        <div className="eyebrow">Production-grade ATS financing recipe</div>
         <h1>
-          Finance a security.
+          Scaffold the hard part.
           <br />
-          Keep custody native.
+          Prove every seam.
         </h1>
         <p className="heroCopy">
-          A focused bilateral rail for HBAR financing against ATS-issued bonds.
-          Every integration is guarded by a failure mode that has been
-          reproduced, sourced, or made explicit as an assumption.
+          Collateral Rail gives developers a reusable path for HBAR financing
+          against ATS-issued securities. It includes the native custody rail,
+          maturity automation, cash conversion, public evidence, and regression
+          guards for Hedera behaviors that happy-path examples leave exposed.
         </p>
         <div className="heroActions">
           <Link className="primaryButton" href="/facility">
@@ -84,10 +112,33 @@ export default function OverviewPage() {
         </div>
       </section>
 
-      <section className="architecture sectionBlock">
+      <section className="sectionBlock seamSection">
         <div className="sectionHeading">
           <div>
             <span className="index">02</span>
+            <h2>Failure modes solved once</h2>
+          </div>
+          <p>
+            The scaffold is useful because each integration seam is converted
+            into code, a guard, and a regression test that downstream teams
+            keep.
+          </p>
+        </div>
+        <div className="seamGrid">
+          {protectedSeams.map(([name, description], index) => (
+            <article key={name}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <h3>{name}</h3>
+              <p>{description}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="architecture sectionBlock">
+        <div className="sectionHeading">
+          <div>
+            <span className="index">03</span>
             <h2>The facility state machine</h2>
           </div>
           <p>
@@ -124,7 +175,7 @@ export default function OverviewPage() {
 
       <section className="sectionBlock evidencePanel">
         <div>
-          <span className="index">03</span>
+          <span className="index">04</span>
           <h2>Evidence before adjectives</h2>
           <p>
             Reference mode never invents a deployment. The committed record
@@ -146,32 +197,35 @@ export default function OverviewPage() {
 
       <section className="sectionBlock setupGrid">
         <div>
-          <span className="index">04</span>
-          <h2>From clone to rail</h2>
+          <span className="index">05</span>
+          <h2>Inspect in under five minutes</h2>
         </div>
         <ol>
           <li>
-            <b>Inspect</b>
-            <span>Run the app with no secrets and read the field guide.</span>
-          </li>
-          <li>
-            <b>Fund</b>
+            <b>Scaffold</b>
             <span>
-              Create Hedera testnet accounts and an encrypted Foundry keystore.
+              Run <code>npm create scaffold-hbar@latest</code> with this public
+              template.
             </span>
           </li>
           <li>
-            <b>Bootstrap</b>
+            <b>Boot</b>
             <span>
-              Deploy the ATS bond, configure SSI and KYC, issue, then deploy the
-              rail.
+              Install dependencies and run <code>yarn dev</code>. No secrets are
+              required.
             </span>
           </li>
           <li>
-            <b>Prove</b>
+            <b>Replay</b>
             <span>
-              Run the Mirror verifier and publish only addresses and transaction
-              hashes.
+              Open the facility route and inspect both committed terminal paths.
+            </span>
+          </li>
+          <li>
+            <b>Verify</b>
+            <span>
+              Reconstruct contract, ATS, HSS, Pyth, Mirror, and HashScan
+              evidence.
             </span>
           </li>
         </ol>

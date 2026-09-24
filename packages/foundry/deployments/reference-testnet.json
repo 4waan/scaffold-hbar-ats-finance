@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "network": "hedera-testnet",
   "chainId": 296,
   "status": "awaiting-verified-publication",
@@ -13,6 +13,11 @@
     "rail": null,
     "acceptance": null
   },
+  "actors": {
+    "issuer": null,
+    "lender": null,
+    "borrower": null
+  },
   "transactions": [],
   "lifecycle": {
     "atsBondDeployment": null,
@@ -25,6 +30,17 @@
     "repaidFacility": null,
     "maturedDefault": null,
     "liveConfigurationRead": null
+  },
+  "pyth": null,
+  "ats": null,
+  "positions": [],
+  "schedules": [],
+  "accounting": null,
+  "verification": {
+    "complete": false,
+    "readsAtBlock": null,
+    "mirrorOrigin": "https://testnet.mirrornode.hedera.com",
+    "contractLinks": {}
   },
   "notice": "This file is intentionally not deployment evidence until every lifecycle field is populated by the verifier."
 }

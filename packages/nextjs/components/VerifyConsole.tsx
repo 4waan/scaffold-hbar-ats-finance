@@ -220,11 +220,112 @@ export function VerifyConsole() {
               <div key={key}>
                 <i className={value ? "complete" : "pending"} />
                 <span>{label}</span>
-                <b>{value ? "verified" : "pending"}</b>
+                {value ? (
+                  <a
+                    href={`https://hashscan.io/testnet/transaction/${value}`}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    verified ↗
+                  </a>
+                ) : (
+                  <b>pending</b>
+                )}
               </div>
             );
           })}
         </div>
+      </section>
+
+      <section className="proofFacts" aria-label="Reference proof facts">
+        <div className="sectionHeading">
+          <div>
+            <span className="index">04</span>
+            <h2>Facts kept separate</h2>
+          </div>
+          <p>
+            A quote, a hold, a schedule, and a cash liability prove different
+            things. The evidence record never collapses them into one status.
+          </p>
+        </div>
+        <div className="factGrid">
+          <article>
+            <span>Pyth cash quote</span>
+            <b>
+              {referenceDeployment.pyth
+                ? `$${formatUnits(BigInt(referenceDeployment.pyth.priceUsdE8), 8)}`
+                : "pending"}
+            </b>
+            <small>HBAR/USD only, not ATS security value</small>
+          </article>
+          <article>
+            <span>Borrower ATS balance</span>
+            <b>
+              {referenceDeployment.ats
+                ? `${referenceDeployment.ats.balances.borrower.free} free`
+                : "pending"}
+            </b>
+            <small>
+              {referenceDeployment.ats
+                ? `${referenceDeployment.ats.balances.borrower.held} held`
+                : "held balance pending"}
+            </small>
+          </article>
+          <article>
+            <span>Cash liabilities</span>
+            <b>
+              {referenceDeployment.accounting
+                ? `${formatUnits(BigInt(referenceDeployment.accounting.cashLiabilitiesTinybar), 8)} HBAR`
+                : "pending"}
+            </b>
+            <small>
+              {referenceDeployment.accounting
+                ? `${formatUnits(BigInt(referenceDeployment.accounting.reservedAutomationTinybar), 8)} HBAR reserved for HSS`
+                : "automation reserve pending"}
+            </small>
+          </article>
+          <article>
+            <span>HSS schedule evidence</span>
+            <b>{referenceDeployment.schedules.length} confirmed</b>
+            <small>Mirror-confirmed schedule entities</small>
+          </article>
+        </div>
+      </section>
+
+      <section className="terminalProofs" aria-label="Terminal position proof">
+        <div>
+          <span className="cardNumber">05</span>
+          <h2>Two terminal positions</h2>
+        </div>
+        {referenceDeployment.positions.length === 0 ? (
+          <p>{referenceDeployment.notice}</p>
+        ) : (
+          <div className="terminalGrid">
+            {referenceDeployment.positions.map((position) => (
+              <article key={position.id}>
+                <span>{position.state}</span>
+                <h3>{position.terminalPath.replaceAll("-", " ")}</h3>
+                <dl>
+                  <div>
+                    <dt>position</dt>
+                    <dd>{position.id}</dd>
+                  </div>
+                  <div>
+                    <dt>hold</dt>
+                    <dd>{position.holdId}</dd>
+                  </div>
+                  <div>
+                    <dt>automation</dt>
+                    <dd>{position.automation}</dd>
+                  </div>
+                </dl>
+                {position.terminalPath === "permissionless-fallback" && (
+                  <strong>HSS unavailable. Public fallback executed.</strong>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <div className="transactionBar" role="status">
