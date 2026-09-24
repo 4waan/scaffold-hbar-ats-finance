@@ -1,0 +1,15 @@
+Collateral Rail
+Copyright 2026 Collateral Rail contributors
+
+This project is licensed under the MIT License.
+
+The reduced ATS interface declarations in packages/foundry/contracts/interfaces
+describe the public ABI of the Asset Tokenization Studio contracts. The upstream
+Asset Tokenization Studio project is licensed under Apache License 2.0. No ATS
+implementation code is included.
+
+The project imports @hiero-ledger/hiero-contracts, licensed under Apache License
+2.0, for the official Hedera Schedule Service helper.
+
+Pyth Network contract ABI declarations are used only to call the public Pyth
+price service. No Pyth implementation code is included.

@@ -1,0 +1,7 @@
+.next
+node_modules
+packages/foundry/cache
+packages/foundry/out
+packages/foundry/broadcast
+packages/foundry/**/*.sol
+yarn.lock

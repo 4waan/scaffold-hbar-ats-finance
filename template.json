@@ -1,0 +1,62 @@
+{
+  "name": "collateral-rail",
+  "description": "Battle-tested bilateral HBAR financing against ATS-issued securities.",
+  "version": "1.0.0",
+  "create-scaffold-hbar": {
+    "requirements": {
+      "node": ">=22.0.0",
+      "forge": ">=1.0.0"
+    },
+    "capabilities": {
+      "frontend": ["nextjs-app"],
+      "solidityFramework": ["foundry"],
+      "packageManager": ["yarn"]
+    },
+    "defaults": {
+      "frontend": "nextjs-app",
+      "solidityFramework": "foundry",
+      "packageManager": "yarn"
+    },
+    "outro": {
+      "sections": [
+        {
+          "title": "Inspect without secrets",
+          "steps": [
+            {
+              "label": "Start reference mode",
+              "command": "{run:dev}"
+            },
+            {
+              "text": "Open http://localhost:3000 to inspect the architecture and evidence model."
+            }
+          ]
+        },
+        {
+          "title": "Build a live facility",
+          "steps": [
+            {
+              "label": "Create and fund Hedera testnet accounts",
+              "url": "https://portal.hedera.com/"
+            },
+            {
+              "label": "Copy the private Foundry environment",
+              "command": "cp packages/foundry/.env.example packages/foundry/.env"
+            },
+            {
+              "label": "Deploy the ATS bond and rail",
+              "command": "{run:bootstrap:testnet}"
+            },
+            {
+              "label": "Confirm live state through Mirror Node",
+              "command": "{run:verify:deployment}"
+            },
+            {
+              "label": "Run every local gate",
+              "command": "{run:build} && {run:test} && {run:test:e2e}"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

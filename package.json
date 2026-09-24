@@ -1,0 +1,37 @@
+{
+  "name": "scaffold-hbar-ats-finance",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "packageManager": "yarn@3.2.3",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "yarn foundry:build && yarn next:build",
+    "dev": "yarn workspace @collateral-rail/nextjs dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "yarn workspace @collateral-rail/nextjs lint && yarn foundry:fmt",
+    "typecheck": "yarn workspace @collateral-rail/nextjs typecheck",
+    "test": "yarn foundry:test",
+    "test:e2e": "yarn workspace @collateral-rail/nextjs test:e2e",
+    "foundry:build": "yarn workspace @collateral-rail/foundry build",
+    "foundry:fmt": "yarn workspace @collateral-rail/foundry fmt:check",
+    "foundry:test": "yarn workspace @collateral-rail/foundry test",
+    "foundry:fuzz": "yarn workspace @collateral-rail/foundry fuzz",
+    "foundry:invariant": "yarn workspace @collateral-rail/foundry invariant",
+    "next:build": "yarn workspace @collateral-rail/nextjs build",
+    "bootstrap:testnet": "yarn workspace @collateral-rail/foundry bootstrap:testnet",
+    "verify:deployment": "yarn workspace @collateral-rail/foundry verify:deployment",
+    "check:routes": "node scripts/check-routes.mjs && node scripts/check-reference-record.mjs",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "check:ats-abi": "yarn workspace @collateral-rail/foundry check:ats-abi"
+  },
+  "devDependencies": {
+    "prettier": "3.6.2"
+  }
+}
