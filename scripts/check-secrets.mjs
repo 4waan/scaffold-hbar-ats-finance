@@ -12,6 +12,7 @@ const ignored = new Set([
   "playwright-report",
   "test-results",
 ]);
+const ignoredDirectories = new Set([path.resolve("packages/foundry/lib")]);
 const ignoredFiles = new Set(["yarn.lock"]);
 const patterns = [
   {
@@ -31,6 +32,8 @@ async function files(directory) {
   for (const entry of entries) {
     if (ignored.has(entry.name)) continue;
     const full = path.join(directory, entry.name);
+    if (entry.isDirectory() && ignoredDirectories.has(path.resolve(full)))
+      continue;
     if (entry.isDirectory()) found.push(...(await files(full)));
     else if (!ignoredFiles.has(entry.name) && !entry.name.endsWith(".png"))
       found.push(full);
