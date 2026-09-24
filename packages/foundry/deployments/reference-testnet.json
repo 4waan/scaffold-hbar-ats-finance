@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "network": "hedera-testnet",
+  "chainId": 296,
+  "status": "awaiting-verified-publication",
+  "generatedAt": null,
+  "addresses": {
+    "factory": "0xd1F118A40f3b02883D35909eF2517e7EDd78379d",
+    "resolver": "0xBA2D5FC2083A0b8f164c50e65d782087fBA18E0a",
+    "pyth": "0xA2aa501b19aff244D90cc15a4Cf739D2725B5729",
+    "atsToken": null,
+    "oracle": null,
+    "rail": null,
+    "acceptance": null
+  },
+  "transactions": [],
+  "lifecycle": {
+    "atsBondDeployment": null,
+    "ssiAndKycConfiguration": null,
+    "collateralIssuance": null,
+    "pythPriceUpdate": null,
+    "fundedOffer": null,
+    "holdCreation": null,
+    "hssScheduleCreation": null,
+    "repaidFacility": null,
+    "maturedDefault": null,
+    "liveConfigurationRead": null
+  },
+  "notice": "This file is intentionally not deployment evidence until every lifecycle field is populated by the verifier."
+}

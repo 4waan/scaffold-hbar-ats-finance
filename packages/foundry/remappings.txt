@@ -1,0 +1,1 @@
+@hiero-ledger/hiero-contracts/=../../node_modules/@hiero-ledger/hiero-contracts/

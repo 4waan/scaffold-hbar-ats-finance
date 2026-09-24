@@ -1,0 +1,16 @@
+{
+  "source": "hashgraph/asset-tokenization-studio v8 testnet ABI",
+  "factory": "0xd1F118A40f3b02883D35909eF2517e7EDd78379d",
+  "runtimeSignatures": [
+    "allowance(address,address)",
+    "balanceOfByPartition(bytes32,address)",
+    "createHoldFromByPartition(bytes32,address,(uint256,uint256,address,address,bytes),bytes)",
+    "executeHoldByPartition((bytes32,address,uint256),address,uint256)",
+    "getHeldAmountForByPartition(bytes32,address)",
+    "getHoldForByPartition((bytes32,address,uint256))",
+    "getKycStatusFor(address)",
+    "getMaturityDate()",
+    "hasRole(bytes32,address)",
+    "releaseHoldByPartition((bytes32,address,uint256),uint256)"
+  ]
+}

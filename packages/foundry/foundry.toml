@@ -1,0 +1,25 @@
+[profile.default]
+src = "contracts"
+test = "test"
+script = "script"
+out = "out"
+cache_path = "cache"
+solc_version = "0.8.24"
+evm_version = "paris"
+optimizer = true
+optimizer_runs = 500
+allow_paths = ["../../node_modules"]
+fs_permissions = [
+  { access = "read", path = "./deployments" },
+  { access = "read-write", path = "./deployments" }
+]
+remappings = [
+  "@hiero-ledger/hiero-contracts/=../../node_modules/@hiero-ledger/hiero-contracts/"
+]
+
+[profile.ci]
+fuzz = { runs = 1024 }
+invariant = { runs = 256, depth = 64, fail_on_revert = false }
+
+[rpc_endpoints]
+hedera_testnet = "${HEDERA_TESTNET_RPC_URL}"
