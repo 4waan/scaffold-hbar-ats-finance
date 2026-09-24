@@ -3,5 +3,6 @@ node_modules
 packages/foundry/cache
 packages/foundry/out
 packages/foundry/broadcast
+packages/foundry/lib
 packages/foundry/**/*.sol
 yarn.lock
