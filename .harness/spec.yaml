@@ -26,7 +26,7 @@ validators:
   commands: .harness/validators/yarn.json
   playwright: .harness/validators/playwright-smoke.yaml
 
-contract: .harness/acceptance-contract.json
+contract: .harness/acceptance-evidence-runner.json
 validator:
   enabled: true
 

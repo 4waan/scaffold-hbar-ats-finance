@@ -1,0 +1,61 @@
+{
+  "name": "Collateral Rail evidence runner acceptance",
+  "assertions": [
+    {
+      "id": "E1",
+      "statement": "The runner rejects non-testnet networks and non-allowlisted RPC, Mirror, and Hermes endpoints.",
+      "severity": "critical",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true,
+      "howToVerify": "Inspect evidence-lib.mjs and demo-testnet.mjs, then run yarn test:runner. Confirm exact HTTPS endpoint policies and the explicit HEDERA_NETWORK testnet guard."
+    },
+    {
+      "id": "E2",
+      "statement": "Harness signer material remains process-local and never enters command arguments, logs, public records, or frontend variables.",
+      "severity": "critical",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true,
+      "howToVerify": "Inspect the Foundry child-process arguments, the explicit evidence schema, the frontend environment reads, and the repository secret gates."
+    },
+    {
+      "id": "E3",
+      "statement": "The runner creates temporary ECDSA lender and borrower accounts within the 250 HBAR cap and performs best-effort account deletion and sweep-back.",
+      "severity": "critical",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true,
+      "howToVerify": "Inspect createTemporaryActor, assertFundingBudget, and sweepTemporaryActor. Confirm their failure paths are covered by yarn test:runner."
+    },
+    {
+      "id": "E4",
+      "statement": "The real lifecycle covers two separate ATS holds, one repayment, one matured default, and an HSS or permissionless terminal path.",
+      "severity": "critical",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true,
+      "howToVerify": "Inspect demo-testnet.mjs for two offer and acceptance iterations, post-create hold inspection, repayment, maturity waiting, HSS state detection, and the public settle fallback."
+    },
+    {
+      "id": "E5",
+      "statement": "Only mined transactions and Mirror-confirmed schedules can enter a verified evidence record.",
+      "severity": "critical",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true,
+      "howToVerify": "Inspect waitForMirrorTransaction, confirmMirrorSchedule, EvidenceJournal, and validateEvidenceRecord. Confirm empty HTTP 200 payloads cannot be treated as proof."
+    },
+    {
+      "id": "E6",
+      "statement": "Publication refuses incomplete records and runs gitleaks before replacing the committed reference record.",
+      "severity": "critical",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true,
+      "howToVerify": "Inspect publish-evidence.mjs. Confirm validation happens before gitleaks and the reference file write happens only after both gates pass."
+    },
+    {
+      "id": "E7",
+      "statement": "The encrypted local-keystore path remains separate from the Harness ephemeral signer path.",
+      "severity": "major",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true,
+      "howToVerify": "Compare bootstrap-local.mjs with demo-testnet.mjs and BootstrapTestnet.s.sol. Confirm the local path uses a named or encrypted keystore while the Harness path reads its in-process signer environment."
+    }
+  ]
+}
