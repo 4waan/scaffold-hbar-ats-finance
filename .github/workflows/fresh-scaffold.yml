@@ -1,0 +1,42 @@
+name: Fresh scaffold gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  fresh-scaffold:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Activate Yarn 3.2.3
+        run: corepack enable && corepack prepare yarn@3.2.3 --activate
+      - name: Generate from the public template
+        run: npm create scaffold-hbar@latest gate-check -- --template 4waan/scaffold-hbar-ats-finance --yes --skip-hedera-skills
+      - name: Install and verify generated project
+        working-directory: gate-check
+        run: |
+          yarn install --immutable
+          yarn format:check
+          yarn lint
+          yarn typecheck
+          yarn foundry:build
+          yarn foundry:test
+          yarn check:ats-abi
+          yarn next:build
+          yarn check:routes
+          yarn check:secrets
+      - name: Install Chromium
+        working-directory: gate-check
+        run: yarn workspace @collateral-rail/nextjs exec playwright install --with-deps chromium
+      - name: Browser tests
+        working-directory: gate-check
+        run: yarn test:e2e

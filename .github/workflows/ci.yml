@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Activate Yarn 3.2.3
+        run: corepack enable && corepack prepare yarn@3.2.3 --activate
+      - name: Install
+        run: yarn install --immutable
+      - name: Static checks
+        run: yarn format:check && yarn lint && yarn typecheck && yarn check:routes && yarn check:secrets
+      - name: Compile contracts
+        run: yarn foundry:build && yarn check:ats-abi
+      - name: Unit, fuzz, and invariant tests
+        env:
+          FOUNDRY_PROFILE: ci
+        run: yarn foundry:test
+      - name: Build web application
+        run: yarn next:build
+      - name: Install Chromium
+        run: yarn workspace @collateral-rail/nextjs exec playwright install --with-deps chromium
+      - name: Browser tests
+        run: yarn test:e2e
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,16 @@
+{
+  "commands": [
+    { "name": "format", "command": "yarn format:check", "timeoutMs": 300000 },
+    { "name": "lint", "command": "yarn lint", "timeoutMs": 300000 },
+    { "name": "typecheck", "command": "yarn typecheck", "timeoutMs": 300000 },
+    {
+      "name": "contracts",
+      "command": "yarn foundry:test",
+      "timeoutMs": 600000
+    },
+    { "name": "ats-abi", "command": "yarn check:ats-abi", "timeoutMs": 120000 },
+    { "name": "web-build", "command": "yarn next:build", "timeoutMs": 600000 },
+    { "name": "routes", "command": "yarn check:routes", "timeoutMs": 120000 },
+    { "name": "secrets", "command": "yarn check:secrets", "timeoutMs": 120000 }
+  ]
+}

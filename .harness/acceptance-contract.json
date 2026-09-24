@@ -1,0 +1,49 @@
+{
+  "name": "Collateral Rail acceptance contract",
+  "assertions": [
+    {
+      "id": "C1",
+      "statement": "The overview explains ATS, Pyth, HSS, and Mirror roles without claiming Pyth prices the security.",
+      "route": "/",
+      "severity": "critical",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true,
+      "howToVerify": "Open the overview. Confirm four integration cards, the cash-only Pyth boundary, architecture flow, and an explicit reference evidence status."
+    },
+    {
+      "id": "C2",
+      "statement": "The facility exposes the complete lender and borrower workflow while keeping writes disabled in reference mode.",
+      "route": "/facility",
+      "severity": "critical",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true,
+      "howToVerify": "Open the facility with no environment file. Confirm Pyth update, preview, fund, approve, accept, cancel, repay, settle, and withdraw controls are visible and disabled until live addresses and a wallet exist."
+    },
+    {
+      "id": "C3",
+      "statement": "Verification distinguishes free ATS balance from held ATS balance and rejects empty Mirror success responses.",
+      "route": "/verify",
+      "severity": "critical",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true,
+      "howToVerify": "Open verify. Confirm separate free and held fields are part of position evidence and the page warns that HTTP 200 alone is insufficient."
+    },
+    {
+      "id": "C4",
+      "statement": "Contract regression and invariant gates pass with the official HSS helper.",
+      "severity": "critical",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true,
+      "howToVerify": "Run yarn foundry:test, yarn foundry:fuzz, yarn foundry:invariant, and yarn check:ats-abi. Inspect the rail import for @hiero-ledger/hiero-contracts."
+    },
+    {
+      "id": "C5",
+      "statement": "A live deployment can be verified without trusting simulated entity addresses.",
+      "severity": "major",
+      "walletRequired": true,
+      "verifiableWithoutCredentials": false,
+      "executableWithTestSigner": true,
+      "howToVerify": "Run bootstrap with an encrypted Foundry account, then run verify:deployment. Confirm Mirror entities, nonempty successful receipts, ATS KYC and SSI reads, and rail immutable bindings."
+    }
+  ]
+}

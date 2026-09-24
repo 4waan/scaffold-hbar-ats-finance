@@ -1,0 +1,22 @@
+name: collateral-rail-routes
+server:
+  command: yarn dev
+  url: http://127.0.0.1:3000
+  timeoutMs: 120000
+defaults:
+  timeoutMs: 30000
+  hydrationTimeoutMs: 60000
+  minBodyTextLength: 100
+  failOnConsoleError: true
+routes:
+  - name: overview
+    path: /
+  - name: facility
+    path: /facility
+  - name: verify
+    path: /verify
+forbidden:
+  visibleText:
+    - Application error
+    - Internal Server Error
+    - Hydration failed
