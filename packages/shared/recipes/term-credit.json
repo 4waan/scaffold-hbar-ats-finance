@@ -1,0 +1,29 @@
+{
+  "id": "term-credit",
+  "name": "Term Credit",
+  "purpose": "A fixed-term HBAR advance secured by an ATS-native hold, with repayment or collateral execution at maturity.",
+  "policy": {
+    "maximumAdvanceBps": 7000,
+    "maximumAnnualRateBps": 10000,
+    "maximumQuoteMovementBps": 100,
+    "minimumTermSeconds": 120,
+    "maximumTermSeconds": 31536000,
+    "maximumOfferLifetimeSeconds": 86400
+  },
+  "defaultTerms": {
+    "collateralAmount": "10",
+    "principalUsd": "70",
+    "annualRateBps": 1000,
+    "termSeconds": 2592000
+  },
+  "editableFields": [
+    "collateralAmount",
+    "principalUsd",
+    "annualRateBps",
+    "termSeconds"
+  ],
+  "extensionNotes": [
+    "Replace the illustrative commercial terms without changing the custody or terminal-state guarantees.",
+    "Use this recipe as the verified reference lifecycle and the starting point for bilateral secured credit."
+  ]
+}

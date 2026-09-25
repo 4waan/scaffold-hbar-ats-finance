@@ -13,6 +13,8 @@
   "scripts": {
     "build": "yarn foundry:build && yarn next:build",
     "dev": "yarn workspace @collateral-rail/nextjs dev",
+    "recipe:list": "yarn workspace @collateral-rail/shared recipe:list",
+    "recipe:check": "yarn workspace @collateral-rail/shared recipe:check",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "yarn workspace @collateral-rail/nextjs lint && yarn foundry:fmt",

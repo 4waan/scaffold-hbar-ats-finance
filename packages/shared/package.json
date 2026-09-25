@@ -1,0 +1,15 @@
+{
+  "name": "@collateral-rail/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    "./recipes": "./src/recipes.ts",
+    "./recipe-lib": "./scripts/recipe-lib.mjs"
+  },
+  "scripts": {
+    "recipe:list": "node scripts/recipe-cli.mjs list",
+    "recipe:check": "node scripts/recipe-cli.mjs check"
+  }
+}

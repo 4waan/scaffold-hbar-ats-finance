@@ -1,0 +1,29 @@
+{
+  "id": "maturity-bridge",
+  "name": "Maturity Bridge",
+  "purpose": "Short-duration HBAR liquidity that must resolve before the underlying ATS security matures.",
+  "policy": {
+    "maximumAdvanceBps": 5000,
+    "maximumAnnualRateBps": 5000,
+    "maximumQuoteMovementBps": 50,
+    "minimumTermSeconds": 120,
+    "maximumTermSeconds": 2592000,
+    "maximumOfferLifetimeSeconds": 3600
+  },
+  "defaultTerms": {
+    "collateralAmount": "10",
+    "principalUsd": "40",
+    "annualRateBps": 500,
+    "termSeconds": 604800
+  },
+  "editableFields": [
+    "collateralAmount",
+    "principalUsd",
+    "annualRateBps",
+    "termSeconds"
+  ],
+  "extensionNotes": [
+    "The tighter advance, quote movement, term, and offer window are illustrative treasury controls.",
+    "The rail still enforces that the facility cannot outlive the ATS security."
+  ]
+}

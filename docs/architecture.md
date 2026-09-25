@@ -3,9 +3,14 @@
 ## Boundary
 
 `AtsCollateralRail` is a bilateral obligation manager. It is bound at deployment
-to one ATS token, one partition, one Pyth adapter, the token decimal count, and a
-configured nominal value. It does not discover assets, match orders, pool funds,
-or calculate a security market price.
+to one ATS token, one partition, one Pyth adapter, the token decimal count, a
+configured nominal value, and an immutable rail policy. It does not discover
+assets, match orders, pool funds, or calculate a security market price.
+
+Financing recipes sit above this kernel. A recipe selects safe policy limits and
+starting terms without changing custody, accounting, automation, or terminal
+state behavior. This keeps product experimentation separate from the invariants
+that protect cash and collateral.
 
 ## State transitions
 

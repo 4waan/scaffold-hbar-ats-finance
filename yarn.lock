@@ -123,6 +123,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@collateral-rail/shared@workspace:packages/shared":
+  version: 0.0.0-use.local
+  resolution: "@collateral-rail/shared@workspace:packages/shared"
+  languageName: unknown
+  linkType: soft
+
 "@ecies/ciphers@npm:^0.2.5":
   version: 0.2.6
   resolution: "@ecies/ciphers@npm:0.2.6"

@@ -1,0 +1,29 @@
+{
+  "id": "custom-facility",
+  "name": "Custom Facility",
+  "purpose": "A safe starting envelope for a developer-defined bilateral ATS financing pattern.",
+  "policy": {
+    "maximumAdvanceBps": 7000,
+    "maximumAnnualRateBps": 10000,
+    "maximumQuoteMovementBps": 100,
+    "minimumTermSeconds": 120,
+    "maximumTermSeconds": 31536000,
+    "maximumOfferLifetimeSeconds": 86400
+  },
+  "defaultTerms": {
+    "collateralAmount": "10",
+    "principalUsd": "60",
+    "annualRateBps": 800,
+    "termSeconds": 1209600
+  },
+  "editableFields": [
+    "collateralAmount",
+    "principalUsd",
+    "annualRateBps",
+    "termSeconds"
+  ],
+  "extensionNotes": [
+    "Create a new recipe before changing the kernel so product assumptions stay explicit and reviewable.",
+    "Staged drawdowns, pools, auctions, and multiple cash legs require new contract behavior rather than another recipe file."
+  ]
+}
