@@ -140,6 +140,9 @@ export function FacilityConsole({
   ) {
     setCompleted((current) => new Set(current).add(step));
     setActiveStep(next);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`facility-step-${next}`)?.focus();
+    });
   }
 
   async function run(

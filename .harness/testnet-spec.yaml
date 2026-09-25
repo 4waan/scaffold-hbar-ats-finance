@@ -35,6 +35,7 @@ constraints:
   workspaces:
     - packages/foundry
     - packages/nextjs
+    - packages/shared
   forbiddenWorkspaces:
     - packages/hardhat
 

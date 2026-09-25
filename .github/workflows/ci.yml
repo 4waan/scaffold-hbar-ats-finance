@@ -26,7 +26,7 @@ jobs:
       - name: Validate Harness recipe
         run: yarn harness:doctor:recipe
       - name: Static checks
-        run: yarn format:check && yarn lint && yarn typecheck && yarn check:routes && yarn check:secrets
+        run: yarn format:check && yarn lint && yarn typecheck && yarn recipe:check && yarn check:dead-code && yarn check:routes && yarn check:secrets
       - name: Compile contracts
         run: yarn foundry:build && yarn check:ats-abi
       - name: Unit, fuzz, and invariant tests

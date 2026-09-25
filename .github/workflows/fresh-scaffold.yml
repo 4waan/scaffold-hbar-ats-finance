@@ -32,6 +32,8 @@ jobs:
           yarn format:check
           yarn lint
           yarn typecheck
+          yarn recipe:check
+          yarn check:dead-code
           yarn foundry:build
           yarn foundry:test
           yarn check:ats-abi

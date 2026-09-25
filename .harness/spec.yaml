@@ -35,6 +35,7 @@ constraints:
   workspaces:
     - packages/foundry
     - packages/nextjs
+    - packages/shared
   forbiddenWorkspaces:
     - packages/hardhat
 
@@ -63,4 +64,5 @@ requiredFiles:
   - docs/hedera-integration-field-guide.md
   - packages/foundry/scripts/demo-testnet.ts
   - packages/foundry/scripts/publish-evidence.mjs
+  - packages/shared/recipes/term-credit.json
   - template.json

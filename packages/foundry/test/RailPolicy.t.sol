@@ -15,6 +15,27 @@ contract RailPolicyTest is TestBase {
     function setUp() public {
         token = new MockAtsToken();
         oracle = new MockOracle(25_000_000);
+        token.setMaturity(block.timestamp + 730 days);
+    }
+
+    function testTermCreditRecipeDeploysAndQuotesItsDefaults() public {
+        _assertRecipeLifecycle(RailTestPolicy.defaults(), 70 * 1e8, 1_000, 30 days, 700 * 1e8);
+    }
+
+    function testMaturityBridgeRecipeDeploysAndQuotesItsDefaults() public {
+        AtsCollateralRail.RailPolicy memory configured = AtsCollateralRail.RailPolicy({
+            maximumAdvanceBps: 5_000,
+            maximumAnnualRateBps: 5_000,
+            maximumQuoteMovementBps: 50,
+            minimumTermSeconds: 2 minutes,
+            maximumTermSeconds: 30 days,
+            maximumOfferLifetimeSeconds: 1 hours
+        });
+        _assertRecipeLifecycle(configured, 40 * 1e8, 500, 7 days, 500 * 1e8);
+    }
+
+    function testCustomFacilityRecipeDeploysAndQuotesItsDefaults() public {
+        _assertRecipeLifecycle(RailTestPolicy.defaults(), 60 * 1e8, 800, 14 days, 700 * 1e8);
     }
 
     function testRejectsZeroAdvance() public {
@@ -104,6 +125,31 @@ contract RailPolicyTest is TestBase {
     function _expectInvalid(AtsCollateralRail.RailPolicy memory configured) internal {
         vm.expectRevert(AtsCollateralRail.InvalidPolicy.selector);
         _deploy(configured);
+    }
+
+    function _assertRecipeLifecycle(
+        AtsCollateralRail.RailPolicy memory configured,
+        uint128 principalUsdE8,
+        uint16 annualRateBps,
+        uint64 termSeconds,
+        uint256 expectedMaximumUsdE8
+    ) internal {
+        AtsCollateralRailHarness deployed = _deploy(configured);
+        AtsCollateralRail.OfferTerms memory terms = AtsCollateralRail.OfferTerms({
+            borrower: address(0xB0770),
+            collateralAmount: 10,
+            principalUsdE8: principalUsdE8,
+            annualRateBps: annualRateBps,
+            termSeconds: termSeconds,
+            offerExpiresAt: uint64(block.timestamp + configured.maximumOfferLifetimeSeconds)
+        });
+        (uint256 maximumUsdE8, uint256 principalTinybar, uint256 repaymentTinybar, uint64 maturity,,) =
+            deployed.previewOffer(terms);
+
+        assertEq(maximumUsdE8, expectedMaximumUsdE8);
+        assertTrue(principalTinybar > 0);
+        assertTrue(repaymentTinybar >= principalTinybar);
+        assertEq(maturity, block.timestamp + termSeconds);
     }
 
     function _deploy(AtsCollateralRail.RailPolicy memory configured) internal returns (AtsCollateralRailHarness) {

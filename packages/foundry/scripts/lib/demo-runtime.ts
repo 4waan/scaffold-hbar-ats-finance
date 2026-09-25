@@ -8,7 +8,7 @@ import { DEFAULT_RPC_URL, confirmMirrorSchedule } from "./evidence-lib.mjs";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-export const foundryRoot = path.resolve(scriptDirectory, "../..");
+const foundryRoot = path.resolve(scriptDirectory, "../..");
 export const addressesPath = path.join(
   foundryRoot,
   "deployments",

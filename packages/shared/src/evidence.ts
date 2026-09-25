@@ -74,16 +74,3 @@ export type ReferenceDeployment = {
   };
   notice: string;
 };
-
-export const lifecycleLabels = [
-  ["atsBondDeployment", "ATS bond deployment"],
-  ["ssiAndKycConfiguration", "SSI and internal KYC"],
-  ["collateralIssuance", "Collateral issuance"],
-  ["pythPriceUpdate", "Fresh Pyth quote"],
-  ["fundedOffer", "Funded offer"],
-  ["holdCreation", "Partition hold"],
-  ["hssScheduleCreation", "HSS maturity schedule"],
-  ["repaidFacility", "Repaid facility"],
-  ["maturedDefault", "Matured default"],
-  ["liveConfigurationRead", "Role, policy, and immutable reads"],
-] as const;

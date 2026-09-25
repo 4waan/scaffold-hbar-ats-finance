@@ -29,6 +29,7 @@ export function FacilityStep({
       <button
         aria-expanded={active}
         className="stepHeading"
+        id={`facility-step-${index}`}
         onClick={onSelect}
         type="button"
       >

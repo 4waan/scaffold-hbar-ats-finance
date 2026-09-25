@@ -33,6 +33,7 @@
     "publish:testnet": "yarn workspace @collateral-rail/foundry publish:testnet",
     "verify:deployment": "yarn workspace @collateral-rail/foundry verify:deployment",
     "check:routes": "node scripts/check-routes.mjs && node scripts/check-reference-record.mjs",
+    "check:dead-code": "knip",
     "check:secrets": "node scripts/check-secrets.mjs",
     "check:ats-abi": "yarn workspace @collateral-rail/foundry check:ats-abi",
     "harness:doctor": "hedera-harness doctor .harness/spec.yaml",
@@ -47,6 +48,7 @@
   "devDependencies": {
     "@hiero-ledger/sdk": "2.86.2",
     "hedera-harness": "1.2.2",
+    "knip": "6.38.0",
     "playwright": "1.61.1",
     "prettier": "3.6.2"
   }

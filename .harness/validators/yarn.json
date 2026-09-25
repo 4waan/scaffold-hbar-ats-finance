@@ -4,6 +4,16 @@
     { "name": "lint", "command": "yarn lint", "timeoutMs": 300000 },
     { "name": "typecheck", "command": "yarn typecheck", "timeoutMs": 300000 },
     {
+      "name": "recipes",
+      "command": "yarn recipe:check",
+      "timeoutMs": 120000
+    },
+    {
+      "name": "dead-code",
+      "command": "yarn check:dead-code",
+      "timeoutMs": 120000
+    },
+    {
       "name": "contracts",
       "command": "yarn foundry:test",
       "timeoutMs": 600000

@@ -9,8 +9,16 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:3000",
     trace: "on-first-retry",
   },
+  expect: {
+    toHaveScreenshot: {
+      animations: "disabled",
+      caret: "hide",
+      maxDiffPixelRatio: 0.02,
+    },
+  },
+  snapshotPathTemplate: "{testDir}/snapshots/{testFilePath}/{arg}{ext}",
   webServer: {
-    command: "yarn dev",
+    command: "yarn dev --hostname 127.0.0.1",
     url: "http://127.0.0.1:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

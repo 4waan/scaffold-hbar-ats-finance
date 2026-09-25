@@ -29,7 +29,7 @@ export const hederaTestnet = defineChain({
   },
 });
 
-export function publicAddress(value: string | undefined): Address | undefined {
+function publicAddress(value: string | undefined): Address | undefined {
   return value && /^0x[a-fA-F0-9]{40}$/.test(value)
     ? (value as Address)
     : undefined;

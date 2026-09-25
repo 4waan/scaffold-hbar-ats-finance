@@ -36,12 +36,17 @@ test("facility expands only one lifecycle step", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: /Set terms/i }),
   ).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("button", { name: /Set terms/i })).toBeFocused();
 
   await page.getByRole("button", { name: "Live wallet" }).click();
   await expect(page).toHaveURL(/mode=live/);
   await expect(
     page.getByText("Live addresses are not configured."),
   ).toBeVisible();
+  await page.getByRole("button", { name: /Price and fund/i }).click();
+  const activeStep = page.locator('.facilityStep[data-active="true"]');
+  await expect(activeStep.getByText("Lender", { exact: true })).toBeVisible();
+  await expect(activeStep.locator(".primaryButton")).toHaveCount(1);
 });
 
 test("verification keeps financial claims and balances distinct", async ({
@@ -69,4 +74,24 @@ test("verification keeps financial claims and balances distinct", async ({
     page.getByText("Cash liabilities", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText("HSS reserve", { exact: true })).toBeVisible();
+});
+
+test("shareable recipe state and mobile layout remain bounded", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/facility?recipe=maturity-bridge&mode=reference");
+  await expect(page.getByLabel("Financing recipe")).toHaveValue(
+    "maturity-bridge",
+  );
+  const hasOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth,
+  );
+  expect(hasOverflow).toBe(false);
+  await expect(page.locator('.facilityStep[data-active="true"]')).toHaveCount(
+    1,
+  );
+  await expect(
+    page.locator('.facilityStep[data-active="true"] .primaryButton'),
+  ).toHaveCount(1);
 });

@@ -1,0 +1,5 @@
+{
+  "ignore": ["packages/foundry/scripts/build-deployment-record.mjs"],
+  "ignoreDependencies": ["@hiero-ledger/hiero-contracts"],
+  "ignoreBinaries": ["forge", "gitleaks"]
+}

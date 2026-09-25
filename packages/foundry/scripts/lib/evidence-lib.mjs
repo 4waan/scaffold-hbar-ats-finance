@@ -1,8 +1,8 @@
 import { setTimeout as delay } from "node:timers/promises";
 
-export const TESTNET_CHAIN_ID = 296;
+const TESTNET_CHAIN_ID = 296;
 export const TINYBAR_PER_HBAR = 100_000_000n;
-export const MAX_SIGNER_HBAR = 250n;
+const MAX_SIGNER_HBAR = 250n;
 export const DEFAULT_RPC_URL = "https://testnet.hashio.io/api";
 export const DEFAULT_MIRROR_URL = "https://testnet.mirrornode.hedera.com";
 export const DEFAULT_HERMES_URL = "https://hermes.pyth.network";
@@ -107,7 +107,7 @@ export function classifyDefaultPath(
   throw new Error("The overdue position did not reach DEFAULTED.");
 }
 
-export function solidityAddressToEntityId(address) {
+function solidityAddressToEntityId(address) {
   if (!ADDRESS_RE.test(address)) throw new Error("Invalid schedule address.");
   const raw = address.slice(2).toLowerCase();
   if (!/^0{24}[a-f0-9]{16}$/.test(raw)) {
