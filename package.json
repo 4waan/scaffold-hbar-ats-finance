@@ -18,7 +18,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "yarn workspace @collateral-rail/nextjs lint && yarn foundry:fmt",
-    "typecheck": "yarn workspace @collateral-rail/nextjs typecheck",
+    "typecheck": "yarn workspace @collateral-rail/foundry typecheck:runner && yarn workspace @collateral-rail/nextjs typecheck",
     "test": "yarn foundry:test && yarn test:runner",
     "test:runner": "yarn workspace @collateral-rail/foundry test:runner",
     "test:e2e": "yarn workspace @collateral-rail/nextjs test:e2e",

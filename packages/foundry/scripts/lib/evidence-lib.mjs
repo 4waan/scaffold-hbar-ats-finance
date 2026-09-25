@@ -14,6 +14,14 @@ const HASH_RE = /^0x[a-fA-F0-9]{64}$/;
 const ACCOUNT_ID_RE = /^0\.0\.\d+$/;
 const FORBIDDEN_EVIDENCE_KEYS = /private|mnemonic|secret|calldata|operatorKey/i;
 const MAX_RESPONSE_BYTES = 2_000_000;
+const POLICY_FIELDS = [
+  "maximumAdvanceBps",
+  "maximumAnnualRateBps",
+  "maximumQuoteMovementBps",
+  "minimumTermSeconds",
+  "maximumTermSeconds",
+  "maximumOfferLifetimeSeconds",
+];
 
 const ENDPOINT_POLICIES = {
   rpc: { origin: "https://testnet.hashio.io", pathname: "/api" },
@@ -338,6 +346,35 @@ function visitEvidence(value, path = "record") {
   }
 }
 
+export function validateRailPolicyEvidence(policy) {
+  if (!policy || typeof policy !== "object") {
+    throw new Error("Evidence is missing the deployed rail policy.");
+  }
+  if (
+    POLICY_FIELDS.some(
+      (field) => !Number.isSafeInteger(policy[field]) || policy[field] < 0,
+    )
+  ) {
+    throw new Error("Evidence rail policy contains a non-integer value.");
+  }
+  if (
+    policy.maximumAdvanceBps === 0 ||
+    policy.maximumAdvanceBps > 7_000 ||
+    policy.maximumAnnualRateBps > 10_000 ||
+    policy.maximumQuoteMovementBps > 100 ||
+    policy.minimumTermSeconds < 120 ||
+    policy.maximumTermSeconds < policy.minimumTermSeconds ||
+    policy.maximumTermSeconds > 365 * 24 * 60 * 60 ||
+    policy.maximumOfferLifetimeSeconds === 0 ||
+    policy.maximumOfferLifetimeSeconds > 24 * 60 * 60
+  ) {
+    throw new Error(
+      "Evidence rail policy is outside the kernel safety envelope.",
+    );
+  }
+  return policy;
+}
+
 export function validateEvidenceRecord(record) {
   visitEvidence(record);
   if (
@@ -348,6 +385,10 @@ export function validateEvidenceRecord(record) {
   ) {
     throw new Error("Evidence record is not a verified Hedera testnet record.");
   }
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(record.recipeId ?? "")) {
+    throw new Error("Evidence is missing a valid recipe ID.");
+  }
+  validateRailPolicyEvidence(record.policy);
   for (const name of [
     "factory",
     "resolver",
@@ -383,10 +424,17 @@ export function validateEvidenceRecord(record) {
     if (
       !HASH_RE.test(transaction?.hash ?? "") ||
       transaction?.result !== "SUCCESS" ||
-      typeof transaction?.consensusTimestamp !== "string"
+      typeof transaction?.consensusTimestamp !== "string" ||
+      transaction?.hashScan !== hashScanTransaction(transaction.hash)
     ) {
       throw new Error("Evidence contains an unverified transaction.");
     }
+  }
+  const verifiedHashes = new Set(
+    record.transactions.map((transaction) => transaction.hash.toLowerCase()),
+  );
+  if (lifecycle.some((hash) => !verifiedHashes.has(hash.toLowerCase()))) {
+    throw new Error("Evidence lifecycle references an unverified transaction.");
   }
   if (!Array.isArray(record.positions) || record.positions.length !== 2) {
     throw new Error("Evidence must contain exactly two positions.");
@@ -403,15 +451,90 @@ export function validateEvidenceRecord(record) {
   if (holdIds.size !== 2 || holdIds.has("0")) {
     throw new Error("Evidence must contain two distinct ATS holds.");
   }
+  for (const position of record.positions) {
+    if (
+      !HASH_RE.test(position?.id ?? "") ||
+      !ADDRESS_RE.test(position?.lender ?? "") ||
+      !ADDRESS_RE.test(position?.borrower ?? "") ||
+      !ADDRESS_RE.test(position?.scheduleAddress ?? "") ||
+      !/^\d+$/.test(position?.collateralAmount ?? "") ||
+      !/^\d+$/.test(position?.principalTinybar ?? "") ||
+      !/^\d+$/.test(position?.repaymentTinybar ?? "") ||
+      !Number.isSafeInteger(position?.openedAt) ||
+      !Number.isSafeInteger(position?.maturity) ||
+      position.maturity <= position.openedAt
+    ) {
+      throw new Error("Evidence contains an incomplete position proof.");
+    }
+    if (
+      (position.state === "REPAID" && position.terminalPath !== "repayment") ||
+      (position.state === "DEFAULTED" &&
+        !["hss", "permissionless-fallback"].includes(position.terminalPath))
+    ) {
+      throw new Error("Evidence position terminal path contradicts its state.");
+    }
+  }
   if (!record.schedules?.some((schedule) => schedule.confirmed === true)) {
     throw new Error("Evidence has no Mirror-confirmed HSS schedule.");
   }
+  for (const schedule of record.schedules) {
+    if (
+      !ADDRESS_RE.test(schedule?.address ?? "") ||
+      !ACCOUNT_ID_RE.test(schedule?.scheduleId ?? "") ||
+      solidityAddressToEntityId(schedule.address) !== schedule.scheduleId ||
+      schedule?.hashScan !== hashScanSchedule(schedule.scheduleId)
+    ) {
+      throw new Error("Evidence contains an invalid HSS schedule proof.");
+    }
+  }
+  const scheduledPositions = new Set(
+    record.positions.map((position) => position.scheduleAddress.toLowerCase()),
+  );
+  if (
+    !record.schedules.some((schedule) =>
+      scheduledPositions.has(schedule.address.toLowerCase()),
+    )
+  ) {
+    throw new Error("Evidence schedule is not bound to either position.");
+  }
   if (
     !record.pyth ||
-    !Number.isFinite(record.pyth.publishTime) ||
+    !Number.isSafeInteger(record.pyth.publishTime) ||
+    record.pyth.publishTime <= 0 ||
+    !/^\d+$/.test(record.pyth.priceUsdE8 ?? "") ||
+    !/^\d+$/.test(record.pyth.confidenceUsdE8 ?? "") ||
     !record.verification?.complete
   ) {
     throw new Error("Evidence is missing Pyth or final verification data.");
+  }
+  if (record.verification.mirrorOrigin !== DEFAULT_MIRROR_URL) {
+    throw new Error(
+      "Evidence verification did not use the public testnet Mirror Node.",
+    );
+  }
+  for (const name of ["atsToken", "oracle", "rail", "acceptance"]) {
+    if (
+      record.verification.contractLinks?.[name] !==
+      hashScanContract(record.addresses[name])
+    ) {
+      throw new Error(`Evidence has an invalid ${name} proof link.`);
+    }
+  }
+  for (const field of [
+    "cashLiabilitiesTinybar",
+    "reservedAutomationTinybar",
+    "requiredBackingTinybar",
+    "contractBalanceTinybar",
+  ]) {
+    if (!/^\d+$/.test(record.accounting?.[field] ?? "")) {
+      throw new Error(`Evidence accounting is missing ${field}.`);
+    }
+  }
+  if (
+    BigInt(record.accounting.contractBalanceTinybar) <
+    BigInt(record.accounting.requiredBackingTinybar)
+  ) {
+    throw new Error("Evidence records an insolvent rail balance.");
   }
   return record;
 }

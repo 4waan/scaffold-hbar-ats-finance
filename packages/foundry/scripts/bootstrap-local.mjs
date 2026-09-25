@@ -2,9 +2,24 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEFAULT_RPC_URL, validatedEndpoint } from "./lib/evidence-lib.mjs";
+import { loadRecipe } from "@collateral-rail/shared/recipe-lib";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const foundryRoot = path.resolve(scriptDirectory, "..");
+const recipeFlag = process.argv.find((value) => value.startsWith("--recipe="));
+const recipeIndex = process.argv.indexOf("--recipe");
+if (
+  recipeFlag === "--recipe=" ||
+  (recipeIndex >= 0 && !process.argv[recipeIndex + 1])
+) {
+  throw new Error("The --recipe flag requires a recipe ID.");
+}
+const recipeId = recipeFlag
+  ? recipeFlag.slice("--recipe=".length)
+  : recipeIndex >= 0
+    ? process.argv[recipeIndex + 1]
+    : "term-credit";
+const recipe = await loadRecipe(recipeId);
 const operatorAddress = process.env.HEDERA_OPERATOR_ADDRESS?.trim();
 
 if (!/^0x[a-fA-F0-9]{40}$/.test(operatorAddress ?? "")) {
@@ -47,7 +62,22 @@ async function run(command, commandArgs) {
   await new Promise((resolve, reject) => {
     const child = spawn(command, commandArgs, {
       cwd: foundryRoot,
-      env: { ...process.env, HEDERA_TESTNET_RPC_URL: rpcUrl },
+      env: {
+        ...process.env,
+        HEDERA_TESTNET_RPC_URL: rpcUrl,
+        RAIL_MAXIMUM_ADVANCE_BPS: String(recipe.policy.maximumAdvanceBps),
+        RAIL_MAXIMUM_ANNUAL_RATE_BPS: String(
+          recipe.policy.maximumAnnualRateBps,
+        ),
+        RAIL_MAXIMUM_QUOTE_MOVEMENT_BPS: String(
+          recipe.policy.maximumQuoteMovementBps,
+        ),
+        RAIL_MINIMUM_TERM_SECONDS: String(recipe.policy.minimumTermSeconds),
+        RAIL_MAXIMUM_TERM_SECONDS: String(recipe.policy.maximumTermSeconds),
+        RAIL_MAXIMUM_OFFER_LIFETIME_SECONDS: String(
+          recipe.policy.maximumOfferLifetimeSeconds,
+        ),
+      },
       stdio: "inherit",
       shell: false,
     });

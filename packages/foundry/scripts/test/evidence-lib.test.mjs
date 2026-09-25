@@ -7,10 +7,16 @@ import {
   classifyDefaultPath,
   createTemporaryActor,
   fetchMirrorPages,
+  hashScanContract,
+  hashScanSchedule,
+  hashScanTransaction,
   parseHermesUpdate,
   sweepTemporaryActor,
+  validateEvidenceRecord,
+  validateRailPolicyEvidence,
   validatedEndpoint,
 } from "../lib/evidence-lib.mjs";
+import { selectedRecipeId } from "../lib/demo-runtime.ts";
 
 function response(payload, status = 200) {
   return {
@@ -18,6 +24,125 @@ function response(payload, status = 200) {
     status,
     headers: new Headers({ "content-type": "application/json" }),
     text: async () => JSON.stringify(payload),
+  };
+}
+
+function verifiedEvidence() {
+  const address = (digit) => `0x${digit.repeat(40)}`;
+  const hash = (digit) => `0x${digit.repeat(64)}`;
+  const hashes = "123456789a".split("").map(hash);
+  const lifecycleKeys = [
+    "atsBondDeployment",
+    "ssiAndKycConfiguration",
+    "collateralIssuance",
+    "pythPriceUpdate",
+    "fundedOffer",
+    "holdCreation",
+    "hssScheduleCreation",
+    "repaidFacility",
+    "maturedDefault",
+    "liveConfigurationRead",
+  ];
+  const addresses = {
+    factory: address("1"),
+    resolver: address("2"),
+    pyth: address("3"),
+    atsToken: address("4"),
+    oracle: address("5"),
+    rail: address("6"),
+    acceptance: address("7"),
+  };
+  const scheduleAddress = `0x${"0".repeat(24)}${"1".padStart(16, "0")}`;
+
+  return {
+    schemaVersion: 2,
+    network: "hedera-testnet",
+    chainId: 296,
+    status: "verified",
+    recipeId: "term-credit",
+    policy: {
+      maximumAdvanceBps: 7_000,
+      maximumAnnualRateBps: 10_000,
+      maximumQuoteMovementBps: 100,
+      minimumTermSeconds: 120,
+      maximumTermSeconds: 31_536_000,
+      maximumOfferLifetimeSeconds: 86_400,
+    },
+    addresses,
+    actors: {
+      issuer: { accountId: "0.0.100", evmAddress: address("8") },
+      lender: { accountId: "0.0.101", evmAddress: address("9") },
+      borrower: { accountId: "0.0.102", evmAddress: address("a") },
+    },
+    lifecycle: Object.fromEntries(
+      lifecycleKeys.map((key, index) => [key, hashes[index]]),
+    ),
+    transactions: hashes.map((transactionHash, index) => ({
+      kind: lifecycleKeys[index],
+      hash: transactionHash,
+      result: "SUCCESS",
+      consensusTimestamp: `1.${index + 1}`,
+      hashScan: hashScanTransaction(transactionHash),
+    })),
+    positions: [
+      {
+        id: hash("b"),
+        lender: address("9"),
+        borrower: address("a"),
+        collateralAmount: "10",
+        holdId: "1",
+        principalTinybar: "100",
+        repaymentTinybar: "101",
+        openedAt: 1_700_000_000,
+        maturity: 1_700_000_120,
+        scheduleAddress,
+        state: "REPAID",
+        terminalPath: "repayment",
+      },
+      {
+        id: hash("c"),
+        lender: address("9"),
+        borrower: address("a"),
+        collateralAmount: "10",
+        holdId: "2",
+        principalTinybar: "100",
+        repaymentTinybar: "101",
+        openedAt: 1_700_000_001,
+        maturity: 1_700_000_121,
+        scheduleAddress,
+        state: "DEFAULTED",
+        terminalPath: "hss",
+      },
+    ],
+    schedules: [
+      {
+        address: scheduleAddress,
+        scheduleId: "0.0.1",
+        confirmed: true,
+        hashScan: hashScanSchedule("0.0.1"),
+      },
+    ],
+    pyth: {
+      priceUsdE8: "10000000",
+      confidenceUsdE8: "1000",
+      publishTime: 1_700_000_000,
+    },
+    accounting: {
+      cashLiabilitiesTinybar: "0",
+      reservedAutomationTinybar: "0",
+      requiredBackingTinybar: "0",
+      contractBalanceTinybar: "1",
+    },
+    verification: {
+      complete: true,
+      mirrorOrigin: "https://testnet.mirrornode.hedera.com",
+      contractLinks: Object.fromEntries(
+        ["atsToken", "oracle", "rail", "acceptance"].map((name) => [
+          name,
+          hashScanContract(addresses[name]),
+        ]),
+      ),
+    },
   };
 }
 
@@ -34,6 +159,20 @@ test("endpoint policy accepts only exact public testnet endpoints", () => {
     () => validatedEndpoint("mirror", "http://127.0.0.1"),
     /allowlist/,
   );
+});
+
+test("recipe CLI parsing is explicit and rejects missing values", () => {
+  assert.equal(selectedRecipeId([]), "term-credit");
+  assert.equal(
+    selectedRecipeId(["--recipe", "maturity-bridge"]),
+    "maturity-bridge",
+  );
+  assert.equal(
+    selectedRecipeId(["--recipe=custom-facility"]),
+    "custom-facility",
+  );
+  assert.throws(() => selectedRecipeId(["--recipe"]), /requires a recipe ID/);
+  assert.throws(() => selectedRecipeId(["--recipe="]), /requires a recipe ID/);
 });
 
 test("funding budget rejects balances and allocations above the cap", () => {
@@ -199,4 +338,36 @@ test("sweep-back failure is reported without throwing or exposing a key", async 
   assert.equal(result.swept, false);
   assert.match(result.error, /ACCOUNT_DELETED/);
   assert.equal("privateKey" in result, false);
+});
+
+test("verified evidence binds its recipe, policy, Mirror proofs, and links", () => {
+  const record = verifiedEvidence();
+  assert.equal(validateEvidenceRecord(record), record);
+
+  record.transactions[0].hashScan = "https://example.com/not-proof";
+  assert.throws(() => validateEvidenceRecord(record), /unverified transaction/);
+});
+
+test("policy evidence must stay inside the kernel safety envelope", () => {
+  const record = verifiedEvidence();
+  assert.equal(validateRailPolicyEvidence(record.policy), record.policy);
+
+  record.policy.maximumAdvanceBps = 7_001;
+  assert.throws(
+    () => validateEvidenceRecord(record),
+    /outside the kernel safety envelope/,
+  );
+});
+
+test("evidence rejects missing recipes and lifecycle hashes without proof", () => {
+  const missingRecipe = verifiedEvidence();
+  missingRecipe.recipeId = null;
+  assert.throws(() => validateEvidenceRecord(missingRecipe), /recipe ID/);
+
+  const unknownHash = verifiedEvidence();
+  unknownHash.lifecycle.holdCreation = `0x${"f".repeat(64)}`;
+  assert.throws(
+    () => validateEvidenceRecord(unknownHash),
+    /unverified transaction/,
+  );
 });

@@ -12,6 +12,8 @@ if (record.status === "verified") {
   validateEvidenceRecord(record);
 } else if (
   record.status !== "awaiting-verified-publication" ||
+  record.recipeId !== null ||
+  record.policy !== null ||
   lifecycleValues.some((value) => value !== null) ||
   record.verification?.complete !== false
 ) {

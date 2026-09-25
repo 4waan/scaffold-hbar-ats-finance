@@ -20,6 +20,9 @@ if (!candidatePath.startsWith(`${deploymentsDirectory}${path.sep}`)) {
 
 const candidateText = await readFile(candidatePath, "utf8");
 const candidate = validateEvidenceRecord(JSON.parse(candidateText));
+if (candidate.recipeId !== "term-credit") {
+  throw new Error("The public reference deployment must use term-credit.");
+}
 
 await new Promise((resolve, reject) => {
   const child = spawn(

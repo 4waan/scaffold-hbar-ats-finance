@@ -12,6 +12,7 @@ interface VmBootstrap {
     function envAddress(string calldata name) external view returns (address value);
     function envOr(string calldata name, address defaultValue) external view returns (address value);
     function envOr(string calldata name, bytes32 defaultValue) external view returns (bytes32 value);
+    function envOr(string calldata name, uint256 defaultValue) external view returns (uint256 value);
     function startBroadcast() external;
     function startBroadcast(uint256 privateKey) external;
     function stopBroadcast() external;
@@ -81,13 +82,7 @@ contract BootstrapTestnet {
 
         PythHbarUsdOracle priceOracle = new PythHbarUsdOracle(IPyth(config.pyth), HBAR_USD_PRICE_ID);
         AtsCollateralRail rail = new AtsCollateralRail(
-            IAtsCollateralToken(token),
-            DEFAULT_PARTITION,
-            priceOracle,
-            0,
-            100 * 1e8,
-            _termCreditPolicy(),
-            config.operator
+            IAtsCollateralToken(token), DEFAULT_PARTITION, priceOracle, 0, 100 * 1e8, _readPolicy(), config.operator
         );
         rail.fundAutomation{value: 2 * rail.HSS_RESERVE_TINYBAR()}();
         RailAcceptance acceptance = new RailAcceptance(rail);
@@ -208,14 +203,24 @@ contract BootstrapTestnet {
         });
     }
 
-    function _termCreditPolicy() internal pure returns (AtsCollateralRail.RailPolicy memory) {
+    function _readPolicy() internal view returns (AtsCollateralRail.RailPolicy memory) {
+        uint256 advance = vm.envOr("RAIL_MAXIMUM_ADVANCE_BPS", uint256(7_000));
+        uint256 rate = vm.envOr("RAIL_MAXIMUM_ANNUAL_RATE_BPS", uint256(10_000));
+        uint256 movement = vm.envOr("RAIL_MAXIMUM_QUOTE_MOVEMENT_BPS", uint256(100));
+        uint256 minimumTerm = vm.envOr("RAIL_MINIMUM_TERM_SECONDS", uint256(2 minutes));
+        uint256 maximumTerm = vm.envOr("RAIL_MAXIMUM_TERM_SECONDS", uint256(365 days));
+        uint256 offerLifetime = vm.envOr("RAIL_MAXIMUM_OFFER_LIFETIME_SECONDS", uint256(24 hours));
+        if (
+            advance == 0 || advance > 7_000 || rate > 10_000 || movement > 100 || minimumTerm < 2 minutes
+                || maximumTerm < minimumTerm || maximumTerm > 365 days || offerLifetime == 0 || offerLifetime > 24 hours
+        ) revert ConfigurationMismatch();
         return AtsCollateralRail.RailPolicy({
-            maximumAdvanceBps: 7_000,
-            maximumAnnualRateBps: 10_000,
-            maximumQuoteMovementBps: 100,
-            minimumTermSeconds: 2 minutes,
-            maximumTermSeconds: 365 days,
-            maximumOfferLifetimeSeconds: 24 hours
+            maximumAdvanceBps: uint16(advance),
+            maximumAnnualRateBps: uint16(rate),
+            maximumQuoteMovementBps: uint16(movement),
+            minimumTermSeconds: uint64(minimumTerm),
+            maximumTermSeconds: uint64(maximumTerm),
+            maximumOfferLifetimeSeconds: uint64(offerLifetime)
         });
     }
 
