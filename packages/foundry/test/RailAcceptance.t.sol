@@ -6,6 +6,7 @@ import {RailAcceptance} from "../contracts/verifiers/RailAcceptance.sol";
 import {MockAtsToken} from "./mocks/MockAtsToken.sol";
 import {MockOracle} from "./mocks/MockOracle.sol";
 import {AtsCollateralRailHarness} from "./mocks/AtsCollateralRailHarness.sol";
+import {RailTestPolicy} from "./RailTestPolicy.sol";
 
 contract RailAcceptanceTest is TestBase {
     function testAcceptanceReadsConfigurationEligibilityAndSolvency() public {
@@ -16,14 +17,16 @@ contract RailAcceptanceTest is TestBase {
         token.setKyc(borrower, true);
         token.setMaturity(block.timestamp + 730 days);
         MockOracle oracle = new MockOracle(25_000_000);
-        AtsCollateralRailHarness rail =
-            new AtsCollateralRailHarness(token, bytes32(uint256(1)), oracle, 0, 100 * 1e8, address(this));
+        AtsCollateralRailHarness rail = new AtsCollateralRailHarness(
+            token, bytes32(uint256(1)), oracle, 0, 100 * 1e8, RailTestPolicy.defaults(), address(this)
+        );
         RailAcceptance acceptance = new RailAcceptance(rail);
 
         RailAcceptance.Result memory result = acceptance.check(lender, borrower);
         assertTrue(result.tokenBinding);
         assertTrue(result.partitionBinding);
         assertTrue(result.nominalConfigured);
+        assertTrue(result.policyConfigured);
         assertTrue(result.internalKycReady);
         assertTrue(result.counterpartiesEligible);
         assertTrue(result.assetMaturityLive);

@@ -18,8 +18,9 @@ contract AtsCollateralRailHarness is AtsCollateralRail {
         IHbarUsdOracle oracle_,
         uint8 tokenDecimals_,
         uint256 nominalValueUsdE8_,
+        RailPolicy memory policy_,
         address owner_
-    ) AtsCollateralRail(atsToken_, partition_, oracle_, tokenDecimals_, nominalValueUsdE8_, owner_) {}
+    ) AtsCollateralRail(atsToken_, partition_, oracle_, tokenDecimals_, nominalValueUsdE8_, policy_, owner_) {}
 
     function configureSchedule(uint256 attempt, int64 responseCode, address scheduleAddress) external {
         availableOnAttempt = attempt;

@@ -6,6 +6,7 @@ import {AtsCollateralRail} from "../../contracts/AtsCollateralRail.sol";
 import {MockAtsToken} from "../mocks/MockAtsToken.sol";
 import {MockOracle} from "../mocks/MockOracle.sol";
 import {AtsCollateralRailHarness} from "../mocks/AtsCollateralRailHarness.sol";
+import {RailTestPolicy} from "../RailTestPolicy.sol";
 
 contract RailActor {
     receive() external payable {}
@@ -98,7 +99,9 @@ contract RailSolvencyInvariantTest is TestBase, StdInvariantBase {
     function setUp() public {
         token = new MockAtsToken();
         MockOracle oracle = new MockOracle(25_000_000);
-        rail = new AtsCollateralRailHarness(token, PARTITION, oracle, 0, 100 * 1e8, address(this));
+        rail = new AtsCollateralRailHarness(
+            token, PARTITION, oracle, 0, 100 * 1e8, RailTestPolicy.defaults(), address(this)
+        );
         RailActor lender = new RailActor();
         RailActor borrower = new RailActor();
         handler = new RailHandler(rail, lender, borrower);

@@ -81,7 +81,13 @@ contract BootstrapTestnet {
 
         PythHbarUsdOracle priceOracle = new PythHbarUsdOracle(IPyth(config.pyth), HBAR_USD_PRICE_ID);
         AtsCollateralRail rail = new AtsCollateralRail(
-            IAtsCollateralToken(token), DEFAULT_PARTITION, priceOracle, 0, 100 * 1e8, config.operator
+            IAtsCollateralToken(token),
+            DEFAULT_PARTITION,
+            priceOracle,
+            0,
+            100 * 1e8,
+            _termCreditPolicy(),
+            config.operator
         );
         rail.fundAutomation{value: 2 * rail.HSS_RESERVE_TINYBAR()}();
         RailAcceptance acceptance = new RailAcceptance(rail);
@@ -199,6 +205,17 @@ contract BootstrapTestnet {
                 listOfCountries: "",
                 info: "Collateral Rail self-contained testnet security"
             })
+        });
+    }
+
+    function _termCreditPolicy() internal pure returns (AtsCollateralRail.RailPolicy memory) {
+        return AtsCollateralRail.RailPolicy({
+            maximumAdvanceBps: 7_000,
+            maximumAnnualRateBps: 10_000,
+            maximumQuoteMovementBps: 100,
+            minimumTermSeconds: 2 minutes,
+            maximumTermSeconds: 365 days,
+            maximumOfferLifetimeSeconds: 24 hours
         });
     }
 

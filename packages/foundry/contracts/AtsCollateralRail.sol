@@ -35,6 +35,15 @@ contract AtsCollateralRail is HederaScheduleService, ReentrancyLock {
         uint64 offerExpiresAt;
     }
 
+    struct RailPolicy {
+        uint16 maximumAdvanceBps;
+        uint16 maximumAnnualRateBps;
+        uint16 maximumQuoteMovementBps;
+        uint64 minimumTermSeconds;
+        uint64 maximumTermSeconds;
+        uint64 maximumOfferLifetimeSeconds;
+    }
+
     struct Position {
         address lender;
         address borrower;
@@ -60,6 +69,8 @@ contract AtsCollateralRail is HederaScheduleService, ReentrancyLock {
 
     uint256 public constant BPS = 10_000;
     uint256 public constant TINYBAR_PER_HBAR = 100_000_000;
+    // These constants are the kernel safety envelope. A deployed policy may be
+    // stricter, but never more permissive.
     uint16 public constant MAX_ADVANCE_BPS = 7_000;
     uint16 public constant MAX_RATE_BPS = 10_000;
     uint16 public constant MAX_QUOTE_MOVEMENT_BPS = 100;
@@ -76,6 +87,12 @@ contract AtsCollateralRail is HederaScheduleService, ReentrancyLock {
     uint8 public immutable tokenDecimals;
     uint256 public immutable nominalValueUsdE8;
     address public immutable owner;
+    uint16 public immutable maximumAdvanceBps;
+    uint16 public immutable maximumAnnualRateBps;
+    uint16 public immutable maximumQuoteMovementBps;
+    uint64 public immutable minimumTermSeconds;
+    uint64 public immutable maximumTermSeconds;
+    uint64 public immutable maximumOfferLifetimeSeconds;
 
     uint256 public offerSequence;
     uint256 public cashLiabilities;
@@ -87,6 +104,7 @@ contract AtsCollateralRail is HederaScheduleService, ReentrancyLock {
 
     error ZeroAddress();
     error InvalidConfiguration();
+    error InvalidPolicy();
     error InvalidTerms();
     error SelfDealing();
     error KycRequired(address account);
@@ -138,6 +156,7 @@ contract AtsCollateralRail is HederaScheduleService, ReentrancyLock {
         IHbarUsdOracle oracle_,
         uint8 tokenDecimals_,
         uint256 nominalValueUsdE8_,
+        RailPolicy memory policy_,
         address owner_
     ) {
         if (address(atsToken_) == address(0) || address(oracle_) == address(0) || owner_ == address(0)) {
@@ -146,11 +165,24 @@ contract AtsCollateralRail is HederaScheduleService, ReentrancyLock {
         if (partition_ == bytes32(0) || tokenDecimals_ > 18 || nominalValueUsdE8_ == 0) {
             revert InvalidConfiguration();
         }
+        if (
+            policy_.maximumAdvanceBps == 0 || policy_.maximumAdvanceBps > MAX_ADVANCE_BPS
+                || policy_.maximumAnnualRateBps > MAX_RATE_BPS
+                || policy_.maximumQuoteMovementBps > MAX_QUOTE_MOVEMENT_BPS || policy_.minimumTermSeconds < MIN_TERM
+                || policy_.maximumTermSeconds < policy_.minimumTermSeconds || policy_.maximumTermSeconds > MAX_TERM
+                || policy_.maximumOfferLifetimeSeconds == 0 || policy_.maximumOfferLifetimeSeconds > MAX_OFFER_LIFETIME
+        ) revert InvalidPolicy();
         atsToken = atsToken_;
         partition = partition_;
         oracle = oracle_;
         tokenDecimals = tokenDecimals_;
         nominalValueUsdE8 = nominalValueUsdE8_;
+        maximumAdvanceBps = policy_.maximumAdvanceBps;
+        maximumAnnualRateBps = policy_.maximumAnnualRateBps;
+        maximumQuoteMovementBps = policy_.maximumQuoteMovementBps;
+        minimumTermSeconds = policy_.minimumTermSeconds;
+        maximumTermSeconds = policy_.maximumTermSeconds;
+        maximumOfferLifetimeSeconds = policy_.maximumOfferLifetimeSeconds;
         owner = owner_;
     }
 
@@ -235,7 +267,7 @@ contract AtsCollateralRail is HederaScheduleService, ReentrancyLock {
         uint256 currentPrincipalTinybar = _usdToTinybar(offer.terms.principalUsdE8, currentPriceUsdE8);
         if (
             _absoluteDifference(currentPrincipalTinybar, offer.principalTinybar) * BPS
-                > offer.principalTinybar * MAX_QUOTE_MOVEMENT_BPS
+                > offer.principalTinybar * maximumQuoteMovementBps
         ) {
             revert QuoteMoved(offer.principalTinybar, currentPrincipalTinybar);
         }
@@ -377,6 +409,17 @@ contract AtsCollateralRail is HederaScheduleService, ReentrancyLock {
         return cashLiabilities + reservedAutomation;
     }
 
+    function policy() external view returns (RailPolicy memory) {
+        return RailPolicy({
+            maximumAdvanceBps: maximumAdvanceBps,
+            maximumAnnualRateBps: maximumAnnualRateBps,
+            maximumQuoteMovementBps: maximumQuoteMovementBps,
+            minimumTermSeconds: minimumTermSeconds,
+            maximumTermSeconds: maximumTermSeconds,
+            maximumOfferLifetimeSeconds: maximumOfferLifetimeSeconds
+        });
+    }
+
     function getOffer(bytes32 offerId) external view returns (FundedOffer memory) {
         return offers[offerId];
     }
@@ -438,9 +481,9 @@ contract AtsCollateralRail is HederaScheduleService, ReentrancyLock {
     function _validateTerms(OfferTerms calldata terms) internal view {
         if (
             terms.borrower == address(0) || terms.collateralAmount == 0 || terms.principalUsdE8 == 0
-                || terms.annualRateBps > MAX_RATE_BPS || terms.termSeconds < MIN_TERM || terms.termSeconds > MAX_TERM
-                || terms.offerExpiresAt <= block.timestamp
-                || terms.offerExpiresAt > block.timestamp + MAX_OFFER_LIFETIME
+                || terms.annualRateBps > maximumAnnualRateBps || terms.termSeconds < minimumTermSeconds
+                || terms.termSeconds > maximumTermSeconds || terms.offerExpiresAt <= block.timestamp
+                || terms.offerExpiresAt > block.timestamp + maximumOfferLifetimeSeconds
         ) revert InvalidTerms();
         uint256 facilityMaturity = block.timestamp + terms.termSeconds;
         uint256 assetMaturity = atsToken.getMaturityDate();
@@ -491,7 +534,7 @@ contract AtsCollateralRail is HederaScheduleService, ReentrancyLock {
 
     function _maximumPrincipalUsdE8(uint256 collateralAmount) internal view returns (uint256) {
         uint256 nominalUsdE8 = collateralAmount * nominalValueUsdE8 / (10 ** tokenDecimals);
-        return nominalUsdE8 * MAX_ADVANCE_BPS / BPS;
+        return nominalUsdE8 * maximumAdvanceBps / BPS;
     }
 
     function _usdToTinybar(uint256 usdE8, uint256 hbarPriceUsdE8) internal pure returns (uint256) {

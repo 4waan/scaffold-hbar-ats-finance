@@ -6,6 +6,7 @@ import {AtsCollateralRail} from "../../contracts/AtsCollateralRail.sol";
 import {MockAtsToken} from "../mocks/MockAtsToken.sol";
 import {MockOracle} from "../mocks/MockOracle.sol";
 import {AtsCollateralRailHarness} from "../mocks/AtsCollateralRailHarness.sol";
+import {RailTestPolicy} from "../RailTestPolicy.sol";
 
 contract RailMathFuzzTest is TestBase {
     bytes32 internal constant PARTITION = bytes32(uint256(1));
@@ -18,7 +19,9 @@ contract RailMathFuzzTest is TestBase {
     function setUp() public {
         token = new MockAtsToken();
         oracle = new MockOracle(25_000_000);
-        rail = new AtsCollateralRailHarness(token, PARTITION, oracle, 0, 100 * 1e8, address(this));
+        rail = new AtsCollateralRailHarness(
+            token, PARTITION, oracle, 0, 100 * 1e8, RailTestPolicy.defaults(), address(this)
+        );
         token.setMaturity(block.timestamp + 730 days);
     }
 

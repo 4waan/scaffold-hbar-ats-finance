@@ -13,6 +13,7 @@ contract RailAcceptance {
         bool tokenBinding;
         bool partitionBinding;
         bool nominalConfigured;
+        bool policyConfigured;
         bool internalKycReady;
         bool counterpartiesEligible;
         bool assetMaturityLive;
@@ -30,6 +31,13 @@ contract RailAcceptance {
         result.tokenBinding = address(rail.atsToken()) == address(token);
         result.partitionBinding = rail.partition() != bytes32(0);
         result.nominalConfigured = rail.nominalValueUsdE8() != 0;
+        AtsCollateralRail.RailPolicy memory policy_ = rail.policy();
+        result.policyConfigured = policy_.maximumAdvanceBps > 0 && policy_.maximumAdvanceBps <= rail.MAX_ADVANCE_BPS()
+            && policy_.maximumAnnualRateBps <= rail.MAX_RATE_BPS()
+            && policy_.maximumQuoteMovementBps <= rail.MAX_QUOTE_MOVEMENT_BPS()
+            && policy_.minimumTermSeconds >= rail.MIN_TERM() && policy_.maximumTermSeconds >= policy_.minimumTermSeconds
+            && policy_.maximumTermSeconds <= rail.MAX_TERM() && policy_.maximumOfferLifetimeSeconds > 0
+            && policy_.maximumOfferLifetimeSeconds <= rail.MAX_OFFER_LIFETIME();
         result.internalKycReady = IAtsIssuerSetupView(address(token)).isInternalKycActivated();
         result.counterpartiesEligible = token.getKycStatusFor(lender) == IAtsCollateralToken.KycStatus.GRANTED
             && token.getKycStatusFor(borrower) == IAtsCollateralToken.KycStatus.GRANTED;
@@ -40,8 +48,9 @@ contract RailAcceptance {
     function requireAccepted(address lender, address borrower) external view {
         Result memory result = check(lender, borrower);
         if (
-            !result.tokenBinding || !result.partitionBinding || !result.nominalConfigured || !result.internalKycReady
-                || !result.counterpartiesEligible || !result.assetMaturityLive || !result.cashSolvent
+            !result.tokenBinding || !result.partitionBinding || !result.nominalConfigured || !result.policyConfigured
+                || !result.internalKycReady || !result.counterpartiesEligible || !result.assetMaturityLive
+                || !result.cashSolvent
         ) revert AcceptanceFailed(result);
     }
 }

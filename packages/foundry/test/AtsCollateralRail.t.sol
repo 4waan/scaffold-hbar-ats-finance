@@ -6,6 +6,7 @@ import {AtsCollateralRail} from "../contracts/AtsCollateralRail.sol";
 import {MockAtsToken} from "./mocks/MockAtsToken.sol";
 import {MockOracle} from "./mocks/MockOracle.sol";
 import {AtsCollateralRailHarness} from "./mocks/AtsCollateralRailHarness.sol";
+import {RailTestPolicy} from "./RailTestPolicy.sol";
 
 contract AtsCollateralRailTest is TestBase {
     address internal constant OWNER = address(0xA11CE);
@@ -24,7 +25,8 @@ contract AtsCollateralRailTest is TestBase {
     function setUp() public {
         token = new MockAtsToken();
         oracle = new MockOracle(HBAR_USD_E8);
-        rail = new AtsCollateralRailHarness(token, PARTITION, oracle, 0, NOMINAL_USD_E8, OWNER);
+        rail =
+            new AtsCollateralRailHarness(token, PARTITION, oracle, 0, NOMINAL_USD_E8, RailTestPolicy.defaults(), OWNER);
         token.setKyc(LENDER, true);
         token.setKyc(BORROWER, true);
         token.setMaturity(block.timestamp + 730 days);
@@ -49,6 +51,16 @@ contract AtsCollateralRailTest is TestBase {
         assertTrue(repaymentTinybar > principalTinybar);
         assertEq(maturity, block.timestamp + terms.termSeconds);
         assertEq(priceUsdE8, HBAR_USD_E8);
+    }
+
+    function testPolicyReadReturnsDeploymentConfiguration() public view {
+        AtsCollateralRail.RailPolicy memory configured = rail.policy();
+        assertEq(configured.maximumAdvanceBps, 7_000);
+        assertEq(configured.maximumAnnualRateBps, 10_000);
+        assertEq(configured.maximumQuoteMovementBps, 100);
+        assertEq(configured.minimumTermSeconds, 2 minutes);
+        assertEq(configured.maximumTermSeconds, 365 days);
+        assertEq(configured.maximumOfferLifetimeSeconds, 24 hours);
     }
 
     function testFundAndAcceptCreatesOneValidatedHold() public {
