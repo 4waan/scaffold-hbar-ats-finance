@@ -12,6 +12,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@collateral-rail/shared": "workspace:*",
     "@tanstack/react-query": "5.90.2",
     "next": "15.2.8",
     "react": "19.2.3",

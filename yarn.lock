@@ -107,6 +107,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@collateral-rail/nextjs@workspace:packages/nextjs"
   dependencies:
+    "@collateral-rail/shared": "workspace:*"
     "@playwright/test": 1.61.1
     "@tanstack/react-query": 5.90.2
     "@types/node": 22.18.6
@@ -123,7 +124,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@collateral-rail/shared@workspace:packages/shared":
+"@collateral-rail/shared@workspace:*, @collateral-rail/shared@workspace:packages/shared":
   version: 0.0.0-use.local
   resolution: "@collateral-rail/shared@workspace:packages/shared"
   languageName: unknown

@@ -4,6 +4,8 @@
   "chainId": 296,
   "status": "awaiting-verified-publication",
   "generatedAt": null,
+  "recipeId": null,
+  "policy": null,
   "addresses": {
     "factory": "0xd1F118A40f3b02883D35909eF2517e7EDd78379d",
     "resolver": "0xBA2D5FC2083A0b8f164c50e65d782087fBA18E0a",

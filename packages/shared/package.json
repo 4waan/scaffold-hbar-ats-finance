@@ -5,6 +5,9 @@
   "type": "module",
   "license": "MIT",
   "exports": {
+    "./abis": "./src/abis.ts",
+    "./evidence": "./src/evidence.ts",
+    "./hedera": "./src/hedera.ts",
     "./recipes": "./src/recipes.ts",
     "./recipe-lib": "./scripts/recipe-lib.mjs"
   },

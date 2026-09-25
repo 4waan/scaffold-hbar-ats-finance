@@ -16,6 +16,7 @@ const contentSecurityPolicy = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  transpilePackages: ["@collateral-rail/shared"],
   async headers() {
     return [
       {
