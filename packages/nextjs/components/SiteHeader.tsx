@@ -16,11 +16,13 @@ export function SiteHeader() {
   return (
     <header className="siteHeader">
       <Link className="wordmark" href="/">
-        <span className="mark">CR</span>
+        <span className="mark" aria-hidden="true">
+          C/R
+        </span>
         <span>Collateral Rail</span>
       </Link>
       <nav aria-label="Primary navigation">
-        <Link href="/">Overview</Link>
+        <Link href="/">Recipes</Link>
         <Link href="/facility">Facility</Link>
         <Link href="/verify">Verify</Link>
       </nav>

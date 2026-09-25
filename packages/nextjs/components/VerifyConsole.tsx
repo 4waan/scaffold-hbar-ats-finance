@@ -11,9 +11,11 @@ import {
   positionStates,
   railAbi,
 } from "@/lib/contracts";
-import { lifecycleLabels, referenceDeployment } from "@/lib/reference";
+import { referenceDeployment } from "@/lib/reference";
 
-type Evidence = {
+type PositionSelection = "repaid" | "defaulted";
+
+type LiveEvidence = {
   state: string;
   automation: string;
   lender: string;
@@ -27,16 +29,105 @@ type Evidence = {
   schedule: string;
 };
 
-export function VerifyConsole() {
+type MirrorFact = {
+  result: string;
+  consensusTimestamp: string;
+  transactionId: string;
+};
+
+type VerifyConsoleProps = {
+  initialPosition: PositionSelection;
+};
+
+function hashScanTransaction(hash: string | null) {
+  return hash ? `https://hashscan.io/testnet/transaction/${hash}` : undefined;
+}
+
+export function VerifyConsole({ initialPosition }: VerifyConsoleProps) {
   const publicClient = usePublicClient();
+  const [selection, setSelection] =
+    useState<PositionSelection>(initialPosition);
   const [positionId, setPositionId] = useState("");
   const [transactionId, setTransactionId] = useState("");
-  const [evidence, setEvidence] = useState<Evidence>();
-  const [mirrorEvidence, setMirrorEvidence] =
-    useState<Record<string, unknown>>();
+  const [liveEvidence, setLiveEvidence] = useState<LiveEvidence>();
+  const [mirrorFact, setMirrorFact] = useState<MirrorFact>();
+  const [rawMirror, setRawMirror] = useState<Record<string, unknown>>();
   const [message, setMessage] = useState(
-    "Enter a position ID to compare live state with public evidence.",
+    "Select a terminal path to inspect its claims and sources.",
   );
+
+  const lifecycle = referenceDeployment.lifecycle as Record<
+    string,
+    string | null
+  >;
+  const position = referenceDeployment.positions.find((candidate) =>
+    selection === "repaid"
+      ? candidate.state === "REPAID"
+      : candidate.state === "DEFAULTED",
+  );
+  const terminalHash =
+    selection === "repaid"
+      ? lifecycle.repaidFacility
+      : lifecycle.maturedDefault;
+
+  const claims = [
+    {
+      claim: "A fresh HBAR/USD cash quote was submitted.",
+      source: "Pyth adapter and Mirror receipt",
+      detail: referenceDeployment.pyth
+        ? `$${formatUnits(BigInt(referenceDeployment.pyth.priceUsdE8), 8)} at ${referenceDeployment.pyth.publishTime}`
+        : "Awaiting verified publication",
+      link: hashScanTransaction(lifecycle.pythPriceUpdate),
+    },
+    {
+      claim: "The lender funded an exact HBAR principal.",
+      source: "AtsCollateralRail and Mirror receipt",
+      detail: position
+        ? `${formatUnits(BigInt(position.principalTinybar), 8)} HBAR`
+        : "Awaiting verified publication",
+      link: hashScanTransaction(lifecycle.fundedOffer),
+    },
+    {
+      claim: "ATS collateral entered a distinct native hold.",
+      source: "ATS partition hold inspection",
+      detail: position
+        ? `Hold ${position.holdId}, ${position.collateralAmount} units`
+        : "Awaiting verified publication",
+      link: hashScanTransaction(lifecycle.holdCreation),
+    },
+    {
+      claim: "Maturity automation was mined and confirmed.",
+      source: "HSS entity and Mirror Node",
+      detail: position?.scheduleAddress ?? "Awaiting verified publication",
+      link:
+        referenceDeployment.schedules.find(
+          (schedule) => schedule.address === position?.scheduleAddress,
+        )?.hashScan ?? hashScanTransaction(lifecycle.hssScheduleCreation),
+    },
+    {
+      claim:
+        selection === "repaid"
+          ? "Repayment released the collateral hold."
+          : "Overdue collateral reached one terminal execution.",
+      source:
+        selection === "repaid"
+          ? "Rail state and ATS hold release"
+          : !position
+            ? "Rail terminal state and ATS hold execution"
+            : position.terminalPath === "permissionless-fallback"
+              ? "Permissionless fallback and ATS hold execution"
+              : "HSS call and ATS hold execution",
+      detail: position
+        ? `${position.state} via ${position.terminalPath.replaceAll("-", " ")}`
+        : "Awaiting verified publication",
+      link: hashScanTransaction(terminalHash),
+    },
+  ];
+
+  function selectPosition(next: PositionSelection) {
+    setSelection(next);
+    window.history.replaceState(null, "", `/verify?position=${next}`);
+  }
 
   async function readPosition() {
     if (
@@ -51,7 +142,7 @@ export function VerifyConsole() {
     }
     try {
       const id = positionId as Hex;
-      const position = await publicClient.readContract({
+      const result = await publicClient.readContract({
         address: addresses.rail,
         abi: railAbi,
         functionName: "getPosition",
@@ -62,32 +153,31 @@ export function VerifyConsole() {
           address: addresses.atsToken,
           abi: atsAbi,
           functionName: "balanceOfByPartition",
-          args: [DEFAULT_PARTITION, position.borrower],
+          args: [DEFAULT_PARTITION, result.borrower],
         }),
         publicClient.readContract({
           address: addresses.atsToken,
           abi: atsAbi,
           functionName: "getHeldAmountForByPartition",
-          args: [DEFAULT_PARTITION, position.borrower],
+          args: [DEFAULT_PARTITION, result.borrower],
         }),
       ]);
-      setEvidence({
-        state: positionStates[position.state] ?? `Unknown ${position.state}`,
+      setLiveEvidence({
+        state: positionStates[result.state] ?? `Unknown ${result.state}`,
         automation:
-          automationStates[position.automation] ??
-          `Unknown ${position.automation}`,
-        lender: position.lender,
-        borrower: position.borrower,
-        collateral: position.collateralAmount.toString(),
+          automationStates[result.automation] ?? `Unknown ${result.automation}`,
+        lender: result.lender,
+        borrower: result.borrower,
+        collateral: result.collateralAmount.toString(),
         free: free.toString(),
         held: held.toString(),
-        principal: `${formatUnits(position.principalTinybar, 8)} HBAR`,
-        repayment: `${formatUnits(position.repaymentTinybar, 8)} HBAR`,
-        maturity: new Date(Number(position.maturity) * 1000).toISOString(),
-        schedule: position.scheduleAddress,
+        principal: `${formatUnits(result.principalTinybar, 8)} HBAR`,
+        repayment: `${formatUnits(result.repaymentTinybar, 8)} HBAR`,
+        maturity: new Date(Number(result.maturity) * 1000).toISOString(),
+        schedule: result.scheduleAddress,
       });
       setMessage(
-        "Live contract state loaded. Free and held ATS balances are shown separately.",
+        "Live state loaded. Free and held ATS balances remain separate.",
       );
     } catch (error) {
       setMessage(
@@ -100,9 +190,7 @@ export function VerifyConsole() {
 
   async function readMirror() {
     if (!/^(0x[a-fA-F0-9]{64}|\d+\.\d+\.\d+-\d+-\d+)$/.test(transactionId)) {
-      setMessage(
-        "Enter a Hedera transaction ID or a 32-byte transaction hash.",
-      );
+      setMessage("Enter a Hedera transaction ID or 32-byte transaction hash.");
       return;
     }
     try {
@@ -110,18 +198,24 @@ export function VerifyConsole() {
         `https://testnet.mirrornode.hedera.com/api/v1/transactions/${encodeURIComponent(transactionId)}`,
         { headers: { Accept: "application/json" } },
       );
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(`Mirror Node returned HTTP ${response.status}.`);
+      }
       const payload = (await response.json()) as Record<string, unknown>;
       const transactions = Array.isArray(payload.transactions)
         ? payload.transactions
         : [];
-      if (transactions.length === 0)
+      const first = transactions[0] as Record<string, unknown> | undefined;
+      if (!first) {
         throw new Error("HTTP 200 contained no matching transaction.");
-      setMirrorEvidence({ transactions, links: payload.links ?? null });
-      setMessage(
-        "Mirror evidence loaded. Inspect the result and pagination metadata before treating it as proof.",
-      );
+      }
+      setMirrorFact({
+        result: String(first.result ?? "UNKNOWN"),
+        consensusTimestamp: String(first.consensus_timestamp ?? "Unavailable"),
+        transactionId: String(first.transaction_id ?? transactionId),
+      });
+      setRawMirror({ transactions, links: payload.links ?? null });
+      setMessage("Mirror facts loaded and parsed from a nonempty result set.");
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Mirror Node read failed.",
@@ -130,206 +224,184 @@ export function VerifyConsole() {
   }
 
   return (
-    <div className="verifyShell">
-      <section className="verifyHero">
-        <span className="eyebrow">Evidence reconstruction</span>
-        <h1>
-          Trust the receipt.
-          <br />
-          Then verify the state.
-        </h1>
-        <p>
-          HashScan proves deployed runtime code. Mirror Node and direct reads
-          prove what the facility is now.
-        </p>
-      </section>
-
-      <section className="verifyGrid">
-        <article className="verifyCard liveState">
-          <span className="cardNumber">01</span>
-          <h2>Position state</h2>
-          <p>Read the rail, then pair free and held ATS balances.</p>
-          <label>
-            Position ID
-            <input
-              value={positionId}
-              onChange={(event) => setPositionId(event.target.value)}
-              placeholder="0x…"
-            />
-          </label>
-          <button
-            className="primaryButton"
-            disabled={!isLiveMode}
-            onClick={readPosition}
-            type="button"
-          >
-            Read live state
-          </button>
-          {evidence && (
-            <dl>
-              {Object.entries(evidence).map(([key, value]) => (
-                <div key={key}>
-                  <dt>{key}</dt>
-                  <dd>{value}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </article>
-
-        <article className="verifyCard mirrorState">
-          <span className="cardNumber">02</span>
-          <h2>Mirror receipt</h2>
-          <p>
-            A successful HTTP response is not enough. Require a nonempty
-            matching transaction list.
-          </p>
-          <label>
-            Transaction ID or hash
-            <input
-              value={transactionId}
-              onChange={(event) => setTransactionId(event.target.value)}
-              placeholder="0.0.123@… or 0x…"
-            />
-          </label>
-          <button
-            className="secondaryButton"
-            onClick={readMirror}
-            type="button"
-          >
-            Query Mirror Node
-          </button>
-          {mirrorEvidence && (
-            <pre>{JSON.stringify(mirrorEvidence, null, 2).slice(0, 4000)}</pre>
-          )}
-        </article>
-      </section>
-
-      <section className="referenceLedger">
+    <div className="proofShell">
+      <header className="proofHeader">
         <div>
-          <span className="cardNumber">03</span>
-          <h2>Committed reference lifecycle</h2>
-          <p>{referenceDeployment.notice}</p>
+          <span className="kicker">Financial proof ledger</span>
+          <h1>Follow one position from claim to source.</h1>
         </div>
-        <div className="checkpointList">
-          {lifecycleLabels.map(([key, label]) => {
-            const value = (
-              referenceDeployment.lifecycle as Record<string, string | null>
-            )[key];
-            return (
-              <div key={key}>
-                <i className={value ? "complete" : "pending"} />
-                <span>{label}</span>
-                {value ? (
-                  <a
-                    href={`https://hashscan.io/testnet/transaction/${value}`}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    verified ↗
-                  </a>
-                ) : (
-                  <b>pending</b>
-                )}
+        <div className="positionSwitch" aria-label="Reference position">
+          <button
+            aria-pressed={selection === "repaid"}
+            onClick={() => selectPosition("repaid")}
+            type="button"
+          >
+            Repaid position
+          </button>
+          <button
+            aria-pressed={selection === "defaulted"}
+            onClick={() => selectPosition("defaulted")}
+            type="button"
+          >
+            Defaulted position
+          </button>
+        </div>
+      </header>
+
+      <section className="selectedProof" aria-label="Selected position proof">
+        <div className="positionIdentity">
+          <span>{selection} path</span>
+          <b>{position?.id ?? "Reference evidence pending"}</b>
+          <small>
+            {position
+              ? `Hold ${position.holdId} · ${position.automation} automation`
+              : referenceDeployment.notice}
+          </small>
+        </div>
+
+        <ol className="proofClaims">
+          {claims.map((item, index) => (
+            <li key={item.claim}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <div>
+                <h2>{item.claim}</h2>
+                <p>{item.detail}</p>
+                <small>{item.source}</small>
               </div>
-            );
-          })}
-        </div>
+              {item.link ? (
+                <a href={item.link} rel="noreferrer" target="_blank">
+                  Proof link
+                </a>
+              ) : (
+                <b>Pending</b>
+              )}
+            </li>
+          ))}
+        </ol>
       </section>
 
-      <section className="proofFacts" aria-label="Reference proof facts">
-        <div className="sectionHeading">
+      <section className="factLedger" aria-label="Separate financial facts">
+        <h2>Facts that must not be collapsed</h2>
+        <dl>
           <div>
-            <span className="index">04</span>
-            <h2>Facts kept separate</h2>
+            <dt>Free ATS balance</dt>
+            <dd>
+              {referenceDeployment.ats
+                ? referenceDeployment.ats.balances.borrower.free
+                : "Pending"}
+            </dd>
           </div>
-          <p>
-            A quote, a hold, a schedule, and a cash liability prove different
-            things. The evidence record never collapses them into one status.
-          </p>
-        </div>
-        <div className="factGrid">
-          <article>
-            <span>Pyth cash quote</span>
-            <b>
+          <div>
+            <dt>Held ATS balance</dt>
+            <dd>
+              {referenceDeployment.ats
+                ? referenceDeployment.ats.balances.borrower.held
+                : "Pending"}
+            </dd>
+          </div>
+          <div>
+            <dt>Pyth cash quote</dt>
+            <dd>
               {referenceDeployment.pyth
                 ? `$${formatUnits(BigInt(referenceDeployment.pyth.priceUsdE8), 8)}`
-                : "pending"}
-            </b>
-            <small>HBAR/USD only, not ATS security value</small>
-          </article>
-          <article>
-            <span>Borrower ATS balance</span>
-            <b>
-              {referenceDeployment.ats
-                ? `${referenceDeployment.ats.balances.borrower.free} free`
-                : "pending"}
-            </b>
-            <small>
-              {referenceDeployment.ats
-                ? `${referenceDeployment.ats.balances.borrower.held} held`
-                : "held balance pending"}
-            </small>
-          </article>
-          <article>
-            <span>Cash liabilities</span>
-            <b>
+                : "Pending"}
+            </dd>
+          </div>
+          <div>
+            <dt>Cash liabilities</dt>
+            <dd>
               {referenceDeployment.accounting
                 ? `${formatUnits(BigInt(referenceDeployment.accounting.cashLiabilitiesTinybar), 8)} HBAR`
-                : "pending"}
-            </b>
-            <small>
-              {referenceDeployment.accounting
-                ? `${formatUnits(BigInt(referenceDeployment.accounting.reservedAutomationTinybar), 8)} HBAR reserved for HSS`
-                : "automation reserve pending"}
-            </small>
-          </article>
-          <article>
-            <span>HSS schedule evidence</span>
-            <b>{referenceDeployment.schedules.length} confirmed</b>
-            <small>Mirror-confirmed schedule entities</small>
-          </article>
-        </div>
-      </section>
-
-      <section className="terminalProofs" aria-label="Terminal position proof">
-        <div>
-          <span className="cardNumber">05</span>
-          <h2>Two terminal positions</h2>
-        </div>
-        {referenceDeployment.positions.length === 0 ? (
-          <p>{referenceDeployment.notice}</p>
-        ) : (
-          <div className="terminalGrid">
-            {referenceDeployment.positions.map((position) => (
-              <article key={position.id}>
-                <span>{position.state}</span>
-                <h3>{position.terminalPath.replaceAll("-", " ")}</h3>
-                <dl>
-                  <div>
-                    <dt>position</dt>
-                    <dd>{position.id}</dd>
-                  </div>
-                  <div>
-                    <dt>hold</dt>
-                    <dd>{position.holdId}</dd>
-                  </div>
-                  <div>
-                    <dt>automation</dt>
-                    <dd>{position.automation}</dd>
-                  </div>
-                </dl>
-                {position.terminalPath === "permissionless-fallback" && (
-                  <strong>HSS unavailable. Public fallback executed.</strong>
-                )}
-              </article>
-            ))}
+                : "Pending"}
+            </dd>
           </div>
-        )}
+          <div>
+            <dt>HSS reserve</dt>
+            <dd>
+              {referenceDeployment.accounting
+                ? `${formatUnits(BigInt(referenceDeployment.accounting.reservedAutomationTinybar), 8)} HBAR`
+                : "Pending"}
+            </dd>
+          </div>
+        </dl>
       </section>
 
-      <div className="transactionBar" role="status">
-        <span>{message}</span>
+      <details className="liveVerifier">
+        <summary>Verify another live position</summary>
+        <div className="liveVerifierGrid">
+          <section>
+            <h2>Contract state</h2>
+            <label className="fieldLabel">
+              Position ID
+              <input
+                value={positionId}
+                onChange={(event) => setPositionId(event.target.value)}
+                placeholder="0x..."
+              />
+            </label>
+            <button
+              className="primaryButton"
+              disabled={!isLiveMode}
+              onClick={readPosition}
+              type="button"
+            >
+              Read contract state
+            </button>
+            {liveEvidence && (
+              <dl className="parsedFacts">
+                {Object.entries(liveEvidence).map(([key, value]) => (
+                  <div key={key}>
+                    <dt>{key}</dt>
+                    <dd>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </section>
+          <section>
+            <h2>Mirror receipt</h2>
+            <label className="fieldLabel">
+              Transaction ID or hash
+              <input
+                value={transactionId}
+                onChange={(event) => setTransactionId(event.target.value)}
+                placeholder="0.0.123-123-456 or 0x..."
+              />
+            </label>
+            <button
+              className="primaryButton"
+              onClick={readMirror}
+              type="button"
+            >
+              Query Mirror Node
+            </button>
+            {mirrorFact && (
+              <dl className="parsedFacts">
+                {Object.entries(mirrorFact).map(([key, value]) => (
+                  <div key={key}>
+                    <dt>{key}</dt>
+                    <dd>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {rawMirror && (
+              <details className="rawEvidence">
+                <summary>Raw Mirror JSON</summary>
+                <pre>{JSON.stringify(rawMirror, null, 2).slice(0, 4_000)}</pre>
+              </details>
+            )}
+          </section>
+        </div>
+      </details>
+
+      <details className="rawEvidence referenceRaw">
+        <summary>Raw committed reference record</summary>
+        <pre>{JSON.stringify(referenceDeployment, null, 2)}</pre>
+      </details>
+
+      <div className="statusLine" role="status">
+        {message}
       </div>
     </div>
   );

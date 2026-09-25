@@ -112,6 +112,9 @@ __metadata:
   resolution: "@collateral-rail/nextjs@workspace:packages/nextjs"
   dependencies:
     "@collateral-rail/shared": "workspace:*"
+    "@fontsource-variable/inter": 5.3.0
+    "@fontsource-variable/newsreader": 5.3.0
+    "@fontsource/ibm-plex-mono": 5.3.0
     "@playwright/test": 1.61.1
     "@tanstack/react-query": 5.90.2
     "@types/node": 22.18.6
@@ -443,6 +446,27 @@ __metadata:
     ethereum-cryptography: ^2.0.0
     micro-ftch: ^0.3.1
   checksum: 9ae5dee8f12b0faf81cd83f06a41560e79b0ba96a48262771d897a510ecae605eb6d84f687da001ab8ccffd50f612ae50f988ef76e6312c752897f462f3ac08d
+  languageName: node
+  linkType: hard
+
+"@fontsource-variable/inter@npm:5.3.0":
+  version: 5.3.0
+  resolution: "@fontsource-variable/inter@npm:5.3.0"
+  checksum: 99a65ae102ed1206f1dce61a2b34d5e92828683d99035b060209e4cefa48702a4aa72047d6105183bbfd40601a3c7b3b624758826e925d75b2fd0ec789ad99f2
+  languageName: node
+  linkType: hard
+
+"@fontsource-variable/newsreader@npm:5.3.0":
+  version: 5.3.0
+  resolution: "@fontsource-variable/newsreader@npm:5.3.0"
+  checksum: c852a3e8d54af42aa0db0a52f0e5fb7c7da0df4db1c2a94a64abb0f7117541d0d0941d20cd68bb1bf7e2160fab575bb954dd7b143db2bb833f3c6bf48d82fa9d
+  languageName: node
+  linkType: hard
+
+"@fontsource/ibm-plex-mono@npm:5.3.0":
+  version: 5.3.0
+  resolution: "@fontsource/ibm-plex-mono@npm:5.3.0"
+  checksum: 288b0a680ef440043b05c041c6ed1ec8100c225e42bf6b8347f388feab643ab3db80c88fdf86253cc513dbc916f9164244b8a41b71064fa69f35c8db522ffbcc
   languageName: node
   linkType: hard
 

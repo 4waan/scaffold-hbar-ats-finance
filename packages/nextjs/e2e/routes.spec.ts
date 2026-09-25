@@ -1,41 +1,72 @@
 import { expect, test } from "@playwright/test";
 
-test("overview explains the rail and evidence state", async ({ page }) => {
+test("home presents one promise, one recipe, and one proof frame", async ({
+  page,
+}) => {
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: /Scaffold the hard part/i }),
+    page.getByRole("heading", { name: "Make ATS assets financeable." }),
   ).toBeVisible();
   await expect(page.getByText("Reference mode", { exact: true })).toBeVisible();
-  await expect(page.getByText("Pyth", { exact: true })).toBeVisible();
-  await expect(page.getByText("Failure modes solved once")).toBeVisible();
+  await page.getByRole("tab", { name: "Maturity Bridge" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Maturity Bridge" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Open this blueprint" }),
+  ).toHaveAttribute("href", "/facility?recipe=maturity-bridge&mode=reference");
+  await expect(
+    page.getByRole("heading", { name: "Every claim has a source." }),
+  ).toBeVisible();
 });
 
-test("facility exposes the complete bilateral workflow", async ({ page }) => {
-  await page.goto("/facility");
-  await expect(page.getByRole("heading", { name: /Move cash/i })).toBeVisible();
+test("facility expands only one lifecycle step", async ({ page }) => {
+  await page.goto("/facility?recipe=term-credit&mode=reference");
   await expect(
-    page.getByRole("button", { name: "Reference replay" }),
-  ).toHaveAttribute("aria-pressed", "true");
+    page.getByRole("heading", { name: "One obligation, step by step." }),
+  ).toBeVisible();
+  await expect(page.locator('.facilityStep[data-active="true"]')).toHaveCount(
+    1,
+  );
+  await expect(
+    page.getByRole("button", { name: /Choose recipe/i }),
+  ).toHaveAttribute("aria-expanded", "true");
+
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(
+    page.getByRole("button", { name: /Set terms/i }),
+  ).toHaveAttribute("aria-expanded", "true");
+
   await page.getByRole("button", { name: "Live wallet" }).click();
+  await expect(page).toHaveURL(/mode=live/);
   await expect(
-    page.getByText("Live mode needs public addresses"),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Fund exact HBAR" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Settle overdue" }),
+    page.getByText("Live addresses are not configured."),
   ).toBeVisible();
 });
 
-test("verification keeps free and held balances distinct", async ({ page }) => {
-  await page.goto("/verify");
+test("verification keeps financial claims and balances distinct", async ({
+  page,
+}) => {
+  await page.goto("/verify?position=defaulted");
   await expect(
-    page.getByRole("heading", { name: /Trust the receipt/i }),
+    page.getByRole("heading", {
+      name: "Follow one position from claim to source.",
+    }),
   ).toBeVisible();
-  await expect(page.getByText(/Free and held ATS balances/i)).toBeVisible();
-  await expect(page.getByText("Committed reference lifecycle")).toBeVisible();
-  await expect(page.getByText("Facts kept separate")).toBeVisible();
-  await expect(page.getByText("Cash liabilities")).toBeVisible();
-  await expect(page.getByText("HSS schedule evidence")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Defaulted position" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByText("Free ATS balance", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Held ATS balance", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Pyth cash quote", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Cash liabilities", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("HSS reserve", { exact: true })).toBeVisible();
 });
