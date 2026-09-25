@@ -50,5 +50,5 @@ chainValidation:
   deploy:
     commands:
       - name: verified-lifecycle
-        command: yarn demo:testnet
+        command: yarn demo:testnet --recipe term-credit
         timeoutMs: 1200000

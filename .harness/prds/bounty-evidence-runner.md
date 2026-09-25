@@ -4,7 +4,7 @@ Build a secure, repeatable Hedera testnet lifecycle command for Collateral Rail.
 
 ## Outcome
 
-`yarn demo:testnet` must use the Harness-provided ephemeral signer as issuer and deployer, create temporary ECDSA lender and borrower accounts, deploy the configured ATS bond, oracle, rail, and acceptance verifier, and complete two financing positions. One position must be repaid and one must mature into default through HSS or the public fallback.
+`yarn demo:testnet --recipe term-credit` must use the Harness-provided ephemeral signer as issuer and deployer, create temporary ECDSA lender and borrower accounts, deploy the configured ATS bond, oracle, rail, and acceptance verifier, and complete two financing positions. One position must be repaid and one must mature into default through HSS or the public fallback.
 
 ## Required behavior
 

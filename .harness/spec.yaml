@@ -61,6 +61,6 @@ requiredFiles:
   - packages/nextjs/app/facility/page.tsx
   - packages/nextjs/app/verify/page.tsx
   - docs/hedera-integration-field-guide.md
-  - packages/foundry/scripts/demo-testnet.mjs
+  - packages/foundry/scripts/demo-testnet.ts
   - packages/foundry/scripts/publish-evidence.mjs
   - template.json

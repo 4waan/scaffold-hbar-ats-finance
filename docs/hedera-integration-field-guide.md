@@ -242,8 +242,8 @@ the division bound for random USD prices and terms.
 unrelated facts and overstate the oracle's role.
 
 **Template consequence:** Pyth converts `principalUsdE8` into tinybar. Collateral
-coverage uses configured ATS nominal value and a 70% advance. UI and docs repeat
-this boundary at the point of use.
+coverage uses configured ATS nominal value and a recipe-selected advance that
+cannot exceed 70%. UI and docs repeat this boundary at the point of use.
 
 **Guard and test:** `testPreviewUsesHaircutConversionAndConservativeInterest`
 checks both calculations as separate outputs. Oracle tests enforce freshness,

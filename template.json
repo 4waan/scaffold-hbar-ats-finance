@@ -1,6 +1,6 @@
 {
   "name": "collateral-rail",
-  "description": "Battle-tested bilateral HBAR financing against ATS-issued securities.",
+  "description": "Recipe-driven HBAR financing against ATS securities with native holds, automation, and public proof.",
   "version": "1.0.0",
   "create-scaffold-hbar": {
     "requirements": {
@@ -23,11 +23,15 @@
           "title": "Inspect without secrets",
           "steps": [
             {
+              "label": "List the financing recipes",
+              "command": "{run:recipe:list}"
+            },
+            {
               "label": "Start reference mode",
               "command": "{run:dev}"
             },
             {
-              "text": "Open http://localhost:3000 to inspect the architecture and evidence model."
+              "text": "Open http://localhost:3000, choose a recipe, and replay its lifecycle without a wallet."
             }
           ]
         },
@@ -43,8 +47,8 @@
               "command": "cp packages/foundry/.env.example packages/foundry/.env"
             },
             {
-              "label": "Deploy the ATS bond and rail",
-              "command": "{run:bootstrap:testnet}"
+              "label": "Deploy the default ATS bond and rail recipe",
+              "command": "{run:bootstrap:testnet} --recipe term-credit"
             },
             {
               "label": "Confirm live state through Mirror Node",

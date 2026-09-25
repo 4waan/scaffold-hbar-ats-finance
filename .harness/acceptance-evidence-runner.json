@@ -7,7 +7,7 @@
       "severity": "critical",
       "walletRequired": false,
       "verifiableWithoutCredentials": true,
-      "howToVerify": "Inspect evidence-lib.mjs and demo-testnet.mjs, then run yarn test:runner. Confirm exact HTTPS endpoint policies and the explicit HEDERA_NETWORK testnet guard."
+      "howToVerify": "Inspect evidence-lib.mjs and demo-testnet.ts, then run yarn test:runner. Confirm exact HTTPS endpoint policies and the explicit HEDERA_NETWORK testnet guard."
     },
     {
       "id": "E2",
@@ -31,7 +31,7 @@
       "severity": "critical",
       "walletRequired": false,
       "verifiableWithoutCredentials": true,
-      "howToVerify": "Inspect demo-testnet.mjs for two offer and acceptance iterations, post-create hold inspection, repayment, maturity waiting, HSS state detection, and the public settle fallback."
+      "howToVerify": "Inspect demo-testnet.ts for two offer and acceptance iterations, post-create hold inspection, repayment, maturity waiting, HSS state detection, and the public settle fallback."
     },
     {
       "id": "E5",
@@ -55,7 +55,7 @@
       "severity": "major",
       "walletRequired": false,
       "verifiableWithoutCredentials": true,
-      "howToVerify": "Compare bootstrap-local.mjs with demo-testnet.mjs and BootstrapTestnet.s.sol. Confirm the local path uses a named or encrypted keystore while the Harness path reads its in-process signer environment."
+      "howToVerify": "Compare bootstrap-local.mjs with demo-testnet.ts and BootstrapTestnet.s.sol. Confirm the local path uses a named or encrypted keystore while the Harness path reads its in-process signer environment."
     }
   ]
 }

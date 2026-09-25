@@ -6,6 +6,10 @@ Collateral Rail is a bilateral HBAR financing scaffold. It is not an exchange,
 an order book, a pooled lender, or a valuation engine. Pyth converts the USD cash
 terms to HBAR. It does not price the ATS security.
 
+Financing flexibility belongs in validated recipe definitions. Do not duplicate
+the facility interface or weaken the custody, solvency, oracle, automation, or
+terminal-state rules to add a product label.
+
 ## Evidence discipline
 
 - Never infer Hedera behavior solely from Ethereum conventions.
@@ -37,6 +41,8 @@ terms to HBAR. It does not price the ATS security.
 - Never persist an address returned by a simulation as a real schedule address.
 - Keep HSS funds separate from user cash liabilities.
 - Name and convert Hedera native units explicitly as tinybar.
+- When adding a recipe, validate its schema, deploy its exact immutable policy,
+  and keep `term-credit` as the committed public evidence recipe.
 
 ## Key safety
 
@@ -45,6 +51,16 @@ terms to HBAR. It does not price the ATS security.
 - Never place a secret in a `NEXT_PUBLIC_` variable.
 - Never commit `.env`, deployment keys, mnemonics, keystores, or funded account
   credentials.
+
+## Interface discipline
+
+- Keep one primary action in the active facility step.
+- Keep free ATS balance, held ATS balance, cash liabilities, automation reserves,
+  Pyth quotes, and HSS status as separate facts.
+- Never label pending, simulated, or unverified data as public evidence.
+- Preserve shareable recipe, mode, and position query parameters.
+- Keep raw protocol data inside a technical disclosure unless it is the subject
+  of the current task.
 
 ## Completion gate
 

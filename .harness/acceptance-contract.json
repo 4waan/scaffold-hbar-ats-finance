@@ -51,7 +51,7 @@
       "severity": "major",
       "walletRequired": false,
       "verifiableWithoutCredentials": true,
-      "howToVerify": "Inspect demo-testnet.mjs and publish-evidence.mjs. Confirm private keys come only from process environment, child processes use secret-free arguments, endpoint origins are allowlisted, temporary accounts are swept, and publication requires full evidence validation plus gitleaks."
+      "howToVerify": "Inspect demo-testnet.ts and publish-evidence.mjs. Confirm private keys come only from process environment, child processes use secret-free arguments, endpoint origins are allowlisted, temporary accounts are swept, and publication requires full evidence validation plus gitleaks."
     },
     {
       "id": "C7",

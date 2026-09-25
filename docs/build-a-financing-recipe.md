@@ -7,6 +7,12 @@ cash accounting, Pyth validation, HSS scheduling, or evidence code.
 Run `yarn recipe:list` to see the bundled recipes and `yarn recipe:check` after
 editing one.
 
+Open the selected recipe without deploying anything:
+
+```text
+/facility?recipe=maturity-bridge&mode=reference
+```
+
 ## Recipe boundary
 
 A recipe defines:
@@ -20,6 +26,35 @@ A recipe defines:
 The kernel still requires ATS collateral, internal KYC, HBAR cash, a valid Pyth
 quote, one terminal hold action, and a permissionless recovery path.
 
+The canonical schema is:
+
+```ts
+type FacilityRecipe = {
+  id: string;
+  name: string;
+  purpose: string;
+  policy: {
+    maximumAdvanceBps: number;
+    maximumAnnualRateBps: number;
+    maximumQuoteMovementBps: number;
+    minimumTermSeconds: number;
+    maximumTermSeconds: number;
+    maximumOfferLifetimeSeconds: number;
+  };
+  defaultTerms: {
+    collateralAmount: string;
+    principalUsd: string;
+    annualRateBps: number;
+    termSeconds: number;
+  };
+  editableFields: string[];
+  extensionNotes: string[];
+};
+```
+
+Recipes are data, not plugins. They cannot inject contract calls, frontend code,
+remote URLs, or arbitrary execution.
+
 ## Add a recipe
 
 1. Copy one JSON file in `packages/shared/recipes`.
@@ -27,7 +62,9 @@ quote, one terminal hold action, and a permissionless recovery path.
 3. Tighten or retain the kernel policy limits.
 4. Choose illustrative default terms within that policy.
 5. Add it to the typed export in `packages/shared/src/recipes.ts`.
-6. Run `yarn recipe:check`, the Foundry suite, and the browser tests.
+6. Open its shareable reference URL and confirm the copy explains its real
+   purpose and limits.
+7. Run `yarn recipe:check`, the Foundry suite, and the browser tests.
 
 Do not present illustrative defaults as underwriting advice. A downstream team
 is responsible for its collateral analysis, legal structure, disclosures, and
@@ -46,6 +83,31 @@ Recipes can be stricter than the kernel. They cannot exceed:
 
 The facility must also mature before the ATS security. These bounds are checked
 both in the recipe validator and in the deployed contract.
+
+Deploy the selected recipe explicitly:
+
+```sh
+yarn bootstrap:testnet --recipe maturity-bridge
+```
+
+The script passes all six policy values to Foundry. After deployment, `policy()`
+must equal the selected definition. A verified evidence record includes both the
+recipe ID and this immutable policy snapshot.
+
+## Required tests for a new recipe
+
+A recipe change is complete only when:
+
+- the schema validator accepts it and still rejects duplicate IDs;
+- every default term fits its own policy;
+- the deployed constructor accepts all six values;
+- contract fuzz tests cover the selected policy envelope;
+- facility URL state selects the recipe in reference and live modes;
+- the workbench renders no field outside `editableFields` as product policy;
+- a live evidence run proves the recipe ID and deployed `policy()` values.
+
+Use `term-credit` for the committed public reference. Another recipe may be
+deployed for development, but it cannot replace the bounty evidence record.
 
 ## When a recipe is not enough
 

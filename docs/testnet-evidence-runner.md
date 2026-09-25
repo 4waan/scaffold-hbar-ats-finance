@@ -1,6 +1,8 @@
 # Testnet evidence runner
 
-`yarn demo:testnet` is the single command used by the Harness Tier 3.5 recipe. It is intentionally testnet-only and completes a real multi-actor lifecycle before it writes a candidate record.
+`yarn demo:testnet --recipe term-credit` is the single command used by the
+Harness Tier 3.5 recipe. It is intentionally testnet-only and completes a real
+multi-actor lifecycle before it writes a candidate record.
 
 ## Harness inputs
 
@@ -50,6 +52,11 @@ The command performs these operations:
 11. Confirms transaction results and real schedule entities through Mirror Node.
 12. Deletes the temporary accounts and transfers their remaining HBAR to the Harness signer on a best-effort basis.
 
+The runner rejects an unknown or missing recipe value. It passes the selected
+policy into Foundry, reads `policy()` after deployment, and refuses to write
+evidence if the onchain values differ. Publication additionally requires
+`recipeId: term-credit` so the public reference remains stable.
+
 Pyth is used only for the HBAR cash conversion. The collateral limit remains a configured advance against ATS nominal value.
 
 ## Local encrypted-keystore path
@@ -70,6 +77,7 @@ The runner writes `packages/foundry/deployments/testnet.json` with mode `0600`. 
 - the terminal states include one repaid and one defaulted facility;
 - at least one HSS schedule is Mirror-confirmed;
 - the Pyth publication data and final state reads are complete;
+- the recipe ID and all six immutable policy values are complete and safe;
 - gitleaks passes over the deployment candidate directory.
 
 Only then is `reference-testnet.json` replaced. Run the repository history and staged secret scans again before a public push.
