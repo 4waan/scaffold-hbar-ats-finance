@@ -1,16 +1,35 @@
 {
   "source": "hashgraph/asset-tokenization-studio v8 testnet ABI",
+  "upstreamRelease": "v.8.0.0-ats",
+  "upstreamCommit": "be4f860e408ec5b1a24d12feb6f872aabff69319",
   "factory": "0xd1F118A40f3b02883D35909eF2517e7EDd78379d",
+  "sourceFiles": {
+    "packages/ats/contracts/contracts/facets/allowance/IAllowance.sol": "8a515570da387791516e11d12956ca95ccc2109422de6e613b37012350d1d3a6",
+    "packages/ats/contracts/contracts/facets/balanceTrackerByPartition/IBalanceTrackerByPartition.sol": "01618089ef8e872069398f7e776e0cff7954af75a87d60b2c6fb15695277e614",
+    "packages/ats/contracts/contracts/facets/holdByPartition/IHoldByPartition.sol": "b819717fa0671c810c7ce8739964d92c20428cf77a8d0f318759e79031479b99",
+    "packages/ats/contracts/contracts/facets/hold/IHoldTypes.sol": "8b66f5edaaf8fa75cd92571a114f579403368f720fc6a28ac8fb9e08c6ce1f4a",
+    "packages/ats/contracts/contracts/facets/kyc/IKyc.sol": "1b8f4a9e6f6cad75973ee5c9e3811dd4f5bee7bed087fd345fb0a670339a079a",
+    "packages/ats/contracts/contracts/facets/maturity/IMaturity.sol": "15d417c7285ed960023dd24127a543e79d6c6e837596d68ab581b7862b75ce6a",
+    "packages/ats/contracts/contracts/facets/accessControl/IAccessControl.sol": "729de59c12cd972aebfe2263ce79303043692aaf7522211adf87aaa011de9a47",
+    "packages/ats/contracts/contracts/facets/core/ICore.sol": "6ec9fc93f72e771b48f60a65ec262571fafa79605d1fb1527187a24059fd3d10",
+    "packages/ats/contracts/contracts/facets/layer_2/nominalValue/INominalValue.sol": "ee5b6fcb29ea65a2f0527c77bcb0b72591acf412cd5b2020d0fafd7608bc1268",
+    "packages/ats/contracts/contracts/facets/clearing/IClearing.sol": "a1e43d5425a7541cb8ccc26d45fc98968cc79dea2ddde35ab2c9d7bad8fc02dd"
+  },
   "runtimeSignatures": [
     "allowance(address,address)",
     "balanceOfByPartition(bytes32,address)",
     "createHoldFromByPartition(bytes32,address,(uint256,uint256,address,address,bytes),bytes)",
     "executeHoldByPartition((bytes32,address,uint256),address,uint256)",
+    "decimals()",
     "getHeldAmountForByPartition(bytes32,address)",
     "getHoldForByPartition((bytes32,address,uint256))",
     "getKycStatusFor(address)",
     "getMaturityDate()",
+    "getNominalValue()",
+    "getNominalValueCurrency()",
+    "getNominalValueDecimals()",
     "hasRole(bytes32,address)",
+    "isClearingActivated()",
     "releaseHoldByPartition((bytes32,address,uint256),uint256)"
   ]
 }

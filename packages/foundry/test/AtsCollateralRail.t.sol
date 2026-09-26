@@ -132,6 +132,65 @@ contract AtsCollateralRailTest is TestBase {
         _assertSolvent();
     }
 
+    function testRepayReleasesUpwardAdjustedHoldAndCannotDefault() public {
+        bytes32 positionId = _fundAndAccept();
+        AtsCollateralRail.Position memory position = rail.getPosition(positionId);
+        uint256 adjustedAmount = COLLATERAL + 5;
+        token.setAdjustedHoldAmount(PARTITION, BORROWER, position.holdId, adjustedAmount);
+
+        vm.prank(BORROWER);
+        rail.repay{value: position.repaymentTinybar}(positionId);
+
+        assertEq(token.balanceOfByPartition(PARTITION, BORROWER), 90 + adjustedAmount);
+        _assertTerminalHoldDrained(position.holdId);
+        vm.warp(position.maturity);
+        assertFalse(rail.settle(positionId));
+        assertEq(uint256(rail.getPosition(positionId).state), uint256(AtsCollateralRail.PositionState.REPAID));
+        assertEq(token.terminalActions(), 1);
+    }
+
+    function testRepayReleasesDownwardAdjustedHold() public {
+        bytes32 positionId = _fundAndAccept();
+        AtsCollateralRail.Position memory position = rail.getPosition(positionId);
+        uint256 adjustedAmount = COLLATERAL - 4;
+        token.setAdjustedHoldAmount(PARTITION, BORROWER, position.holdId, adjustedAmount);
+
+        vm.prank(BORROWER);
+        rail.repay{value: position.repaymentTinybar}(positionId);
+
+        assertEq(token.balanceOfByPartition(PARTITION, BORROWER), 90 + adjustedAmount);
+        _assertTerminalHoldDrained(position.holdId);
+        assertEq(token.terminalActions(), 1);
+    }
+
+    function testRepayRejectsMismatchedLiveHoldIdentity() public {
+        bytes32 positionId = _fundAndAccept();
+        AtsCollateralRail.Position memory position = rail.getPosition(positionId);
+        token.setHoldData(PARTITION, BORROWER, position.holdId, abi.encode(bytes32(uint256(123))));
+
+        vm.prank(BORROWER);
+        vm.expectRevert(AtsCollateralRail.InvalidHold.selector);
+        rail.repay{value: position.repaymentTinybar}(positionId);
+
+        assertEq(uint256(rail.getPosition(positionId).state), uint256(AtsCollateralRail.PositionState.OPEN));
+        assertEq(token.holdAmount(PARTITION, BORROWER, position.holdId), COLLATERAL);
+        assertEq(token.terminalActions(), 0);
+    }
+
+    function testRepayRejectsSuccessfulAtsResponseWithResidualHold() public {
+        bytes32 positionId = _fundAndAccept();
+        AtsCollateralRail.Position memory position = rail.getPosition(positionId);
+        token.setTerminalResidualAmount(1);
+
+        vm.prank(BORROWER);
+        vm.expectRevert(AtsCollateralRail.InvalidHold.selector);
+        rail.repay{value: position.repaymentTinybar}(positionId);
+
+        assertEq(uint256(rail.getPosition(positionId).state), uint256(AtsCollateralRail.PositionState.OPEN));
+        assertEq(token.holdAmount(PARTITION, BORROWER, position.holdId), COLLATERAL);
+        assertEq(token.terminalActions(), 0);
+    }
+
     function testDefaultCannotExecuteBeforeMaturity() public {
         bytes32 positionId = _fundAndAccept();
         uint256 maturity = rail.getPosition(positionId).maturity;
@@ -150,6 +209,66 @@ contract AtsCollateralRailTest is TestBase {
         assertEq(uint256(rail.getPosition(positionId).state), uint256(AtsCollateralRail.PositionState.DEFAULTED));
         assertEq(token.balanceOfByPartition(PARTITION, LENDER), COLLATERAL);
         assertEq(token.terminalActions(), 1);
+    }
+
+    function testDefaultExecutesUpwardAdjustedHold() public {
+        bytes32 positionId = _fundAndAccept();
+        AtsCollateralRail.Position memory position = rail.getPosition(positionId);
+        uint256 adjustedAmount = COLLATERAL + 5;
+        token.setAdjustedHoldAmount(PARTITION, BORROWER, position.holdId, adjustedAmount);
+        vm.warp(position.maturity);
+
+        assertTrue(rail.settle(positionId));
+
+        assertEq(token.balanceOfByPartition(PARTITION, LENDER), adjustedAmount);
+        _assertTerminalHoldDrained(position.holdId);
+        assertEq(token.terminalActions(), 1);
+    }
+
+    function testDefaultExecutesDownwardAdjustedHoldAndCannotRepay() public {
+        bytes32 positionId = _fundAndAccept();
+        AtsCollateralRail.Position memory position = rail.getPosition(positionId);
+        uint256 adjustedAmount = COLLATERAL - 4;
+        token.setAdjustedHoldAmount(PARTITION, BORROWER, position.holdId, adjustedAmount);
+        vm.warp(position.maturity);
+
+        assertTrue(rail.settle(positionId));
+
+        assertEq(token.balanceOfByPartition(PARTITION, LENDER), adjustedAmount);
+        _assertTerminalHoldDrained(position.holdId);
+        vm.prank(BORROWER);
+        vm.expectRevert(AtsCollateralRail.PositionNotOpen.selector);
+        rail.repay{value: position.repaymentTinybar}(positionId);
+        assertEq(uint256(rail.getPosition(positionId).state), uint256(AtsCollateralRail.PositionState.DEFAULTED));
+        assertEq(token.terminalActions(), 1);
+    }
+
+    function testDefaultRejectsMismatchedLiveHoldIdentity() public {
+        bytes32 positionId = _fundAndAccept();
+        AtsCollateralRail.Position memory position = rail.getPosition(positionId);
+        token.setHoldData(PARTITION, BORROWER, position.holdId, abi.encode(bytes32(uint256(123))));
+        vm.warp(position.maturity);
+
+        vm.expectRevert(AtsCollateralRail.InvalidHold.selector);
+        rail.settle(positionId);
+
+        assertEq(uint256(rail.getPosition(positionId).state), uint256(AtsCollateralRail.PositionState.OPEN));
+        assertEq(token.holdAmount(PARTITION, BORROWER, position.holdId), COLLATERAL);
+        assertEq(token.terminalActions(), 0);
+    }
+
+    function testDefaultRejectsSuccessfulAtsResponseWithResidualHold() public {
+        bytes32 positionId = _fundAndAccept();
+        AtsCollateralRail.Position memory position = rail.getPosition(positionId);
+        token.setTerminalResidualAmount(1);
+        vm.warp(position.maturity);
+
+        vm.expectRevert(AtsCollateralRail.InvalidHold.selector);
+        rail.settle(positionId);
+
+        assertEq(uint256(rail.getPosition(positionId).state), uint256(AtsCollateralRail.PositionState.OPEN));
+        assertEq(token.holdAmount(PARTITION, BORROWER, position.holdId), COLLATERAL);
+        assertEq(token.terminalActions(), 0);
     }
 
     function testExpiredLenderKycLeavesDefaultRetryable() public {
@@ -267,5 +386,10 @@ contract AtsCollateralRailTest is TestBase {
 
     function _assertSolvent() internal view {
         assertTrue(address(rail).balance >= rail.cashLiabilities() + rail.reservedAutomation());
+    }
+
+    function _assertTerminalHoldDrained(uint256 holdId) internal view {
+        assertEq(token.holdAmount(PARTITION, BORROWER, holdId), 0);
+        assertEq(token.getHeldAmountForByPartition(PARTITION, BORROWER), 0);
     }
 }

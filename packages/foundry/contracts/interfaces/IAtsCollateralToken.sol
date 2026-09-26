@@ -58,6 +58,16 @@ interface IAtsCollateralToken {
     function getMaturityDate() external view returns (uint256);
 
     function hasRole(bytes32 role, address account) external view returns (bool);
+
+    function isClearingActivated() external view returns (bool);
+
+    function decimals() external view returns (uint8);
+
+    function getNominalValue() external view returns (uint256);
+
+    function getNominalValueDecimals() external view returns (uint8);
+
+    function getNominalValueCurrency() external view returns (bytes3);
 }
 
 /// @notice Setup calls are deliberately isolated from the runtime rail surface.

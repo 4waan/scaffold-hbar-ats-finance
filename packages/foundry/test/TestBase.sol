@@ -9,6 +9,7 @@ interface Vm {
     function warp(uint256 newTimestamp) external;
     function expectRevert(bytes4 selector) external;
     function expectRevert(bytes calldata revertData) external;
+    function mockCall(address callee, bytes calldata data, bytes calldata returnData) external;
 }
 
 abstract contract TestBase {
@@ -71,6 +72,10 @@ abstract contract StdInvariantBase {
 
     function targetContract(address target) internal {
         _targetedContracts.push(target);
+    }
+
+    function targetSelector(FuzzSelector memory selector) internal {
+        _targetedSelectors.push(selector);
     }
 
     function targetContracts() public view returns (address[] memory) {

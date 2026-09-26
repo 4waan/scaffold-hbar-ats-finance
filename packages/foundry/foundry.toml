@@ -5,12 +5,14 @@ script = "script"
 out = "out"
 cache_path = "cache"
 solc_version = "0.8.24"
-evm_version = "paris"
+# ATS v8 is compiled for Cancun. Forge must use the same execution rules when
+# simulating calls into the pinned testnet Factory, or Cancun opcodes halt as
+# NotActivated before any transaction can be broadcast.
+evm_version = "cancun"
 optimizer = true
 optimizer_runs = 500
 allow_paths = ["../../node_modules"]
 fs_permissions = [
-  { access = "read", path = "./deployments" },
   { access = "read-write", path = "./deployments" }
 ]
 remappings = [

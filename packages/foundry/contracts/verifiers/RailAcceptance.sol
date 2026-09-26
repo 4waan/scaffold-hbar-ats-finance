@@ -12,7 +12,10 @@ contract RailAcceptance {
     struct Result {
         bool tokenBinding;
         bool partitionBinding;
-        bool nominalConfigured;
+        bool nominalBinding;
+        bool tokenDecimalsBinding;
+        bool usdCurrencyBinding;
+        bool clearingDisabled;
         bool policyConfigured;
         bool internalKycReady;
         bool counterpartiesEligible;
@@ -30,7 +33,19 @@ contract RailAcceptance {
     function check(address lender, address borrower) public view returns (Result memory result) {
         result.tokenBinding = address(rail.atsToken()) == address(token);
         result.partitionBinding = rail.partition() != bytes32(0);
-        result.nominalConfigured = rail.nominalValueUsdE8() != 0;
+        uint8 nominalDecimals = token.getNominalValueDecimals();
+        uint256 nominalValue = token.getNominalValue();
+        uint256 normalizedNominal;
+        if (nominalDecimals <= 8) {
+            normalizedNominal = nominalValue * (10 ** (8 - nominalDecimals));
+        } else {
+            uint256 divisor = 10 ** (nominalDecimals - 8);
+            if (nominalValue % divisor == 0) normalizedNominal = nominalValue / divisor;
+        }
+        result.nominalBinding = normalizedNominal != 0 && normalizedNominal == rail.nominalValueUsdE8();
+        result.tokenDecimalsBinding = token.decimals() == rail.tokenDecimals();
+        result.usdCurrencyBinding = token.getNominalValueCurrency() == bytes3("USD");
+        result.clearingDisabled = !token.isClearingActivated();
         AtsCollateralRail.RailPolicy memory policy_ = rail.policy();
         result.policyConfigured = policy_.maximumAdvanceBps > 0 && policy_.maximumAdvanceBps <= rail.MAX_ADVANCE_BPS()
             && policy_.maximumAnnualRateBps <= rail.MAX_RATE_BPS()
@@ -48,7 +63,8 @@ contract RailAcceptance {
     function requireAccepted(address lender, address borrower) external view {
         Result memory result = check(lender, borrower);
         if (
-            !result.tokenBinding || !result.partitionBinding || !result.nominalConfigured || !result.policyConfigured
+            !result.tokenBinding || !result.partitionBinding || !result.nominalBinding || !result.tokenDecimalsBinding
+                || !result.usdCurrencyBinding || !result.clearingDisabled || !result.policyConfigured
                 || !result.internalKycReady || !result.counterpartiesEligible || !result.assetMaturityLive
                 || !result.cashSolvent
         ) revert AcceptanceFailed(result);

@@ -80,6 +80,7 @@ contract AtsCollateralRail is HederaScheduleService, ReentrancyLock {
     uint256 public constant HSS_GAS_LIMIT = 750_000;
     uint256 public constant HSS_RESERVE_TINYBAR = 5 * TINYBAR_PER_HBAR;
     int64 public constant HEDERA_SUCCESS = 22;
+    uint8 private constant ATS_AUTHORIZED_HOLD = 1;
 
     IAtsCollateralToken public immutable atsToken;
     IHbarUsdOracle public immutable oracle;
@@ -333,12 +334,15 @@ contract AtsCollateralRail is HederaScheduleService, ReentrancyLock {
             revert IncorrectFunding(msg.value, position.repaymentTinybar);
         }
 
+        uint256 currentCollateralAmount = _validatedCurrentHoldAmount(positionId, position);
+
         position.state = PositionState.REPAID;
         cashLiabilities += msg.value;
         credits[position.lender] += msg.value;
 
-        bool released = atsToken.releaseHoldByPartition(_holdIdentifier(position), position.collateralAmount);
+        bool released = atsToken.releaseHoldByPartition(_holdIdentifier(position), currentCollateralAmount);
         if (!released) revert HoldCallFailed(IAtsCollateralToken.releaseHoldByPartition.selector);
+        _requireHoldDrained(position);
 
         _requireSolvent();
         emit PositionRepaid(positionId, msg.value);
@@ -359,16 +363,18 @@ contract AtsCollateralRail is HederaScheduleService, ReentrancyLock {
         }
 
         _requireKyc(position.lender);
+        uint256 currentCollateralAmount = _validatedCurrentHoldAmount(positionId, position);
         position.state = PositionState.DEFAULTED;
         _completeAutomation(positionId, position);
 
         (bool success, bytes32 executedPartition) =
-            atsToken.executeHoldByPartition(_holdIdentifier(position), position.lender, position.collateralAmount);
+            atsToken.executeHoldByPartition(_holdIdentifier(position), position.lender, currentCollateralAmount);
         if (!success) revert HoldCallFailed(IAtsCollateralToken.executeHoldByPartition.selector);
         if (executedPartition != partition) revert InvalidHold();
+        _requireHoldDrained(position);
 
         _requireSolvent();
-        emit PositionDefaulted(positionId, position.collateralAmount);
+        emit PositionDefaulted(positionId, currentCollateralAmount);
         return true;
     }
 
@@ -506,14 +512,42 @@ contract AtsCollateralRail is HederaScheduleService, ReentrancyLock {
             address destination,
             bytes memory data,
             bytes memory operatorData,
+            uint8 thirdPartyType
         ) = atsToken.getHoldForByPartition(
             IAtsCollateralToken.HoldIdentifier({partition: partition, tokenHolder: borrower, holdId: holdId})
         );
         if (
             amount != collateralAmount || expirationTimestamp <= maturity || escrow != address(this)
                 || destination != address(0) || keccak256(data) != keccak256(abi.encode(positionId))
-                || operatorData.length != 0
+                || operatorData.length != 0 || thirdPartyType != ATS_AUTHORIZED_HOLD
         ) revert InvalidHold();
+    }
+
+    function _validatedCurrentHoldAmount(bytes32 positionId, Position storage position)
+        internal
+        view
+        returns (uint256 amount)
+    {
+        uint256 expirationTimestamp;
+        address escrow;
+        address destination;
+        bytes memory data;
+        bytes memory operatorData;
+        uint8 thirdPartyType;
+        (amount, expirationTimestamp, escrow, destination, data, operatorData, thirdPartyType) =
+            atsToken.getHoldForByPartition(_holdIdentifier(position));
+
+        uint256 totalHeld = atsToken.getHeldAmountForByPartition(partition, position.borrower);
+        if (
+            amount == 0 || amount > totalHeld || expirationTimestamp <= position.maturity || escrow != address(this)
+                || destination != address(0) || keccak256(data) != keccak256(abi.encode(positionId))
+                || operatorData.length != 0 || thirdPartyType != ATS_AUTHORIZED_HOLD
+        ) revert InvalidHold();
+    }
+
+    function _requireHoldDrained(Position storage position) internal view {
+        (uint256 remainingAmount,,,,,,) = atsToken.getHoldForByPartition(_holdIdentifier(position));
+        if (remainingAmount != 0) revert InvalidHold();
     }
 
     function _holdIdentifier(Position storage position)

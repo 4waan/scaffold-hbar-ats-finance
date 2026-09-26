@@ -9,6 +9,19 @@ const artifactPath = new URL(
 const required = JSON.parse(await readFile(requiredPath, "utf8"));
 const artifact = JSON.parse(await readFile(artifactPath, "utf8"));
 
+if (
+  !/^[a-f0-9]{40}$/.test(required.upstreamCommit ?? "") ||
+  !required.sourceFiles ||
+  Object.keys(required.sourceFiles).length === 0 ||
+  Object.entries(required.sourceFiles).some(
+    ([file, digest]) =>
+      !file.startsWith("packages/ats/contracts/contracts/") ||
+      !/^[a-f0-9]{64}$/.test(digest),
+  )
+) {
+  throw new Error("ATS source provenance is missing or malformed.");
+}
+
 function canonicalType(input) {
   if (!input.type.startsWith("tuple")) return input.type;
   const suffix = input.type.slice("tuple".length);
@@ -29,5 +42,5 @@ if (missing.length || extra.length) {
 }
 
 console.log(
-  `ATS reduced interface matches ${expected.length} pinned runtime signatures.`,
+  `ATS reduced interface matches ${expected.length} signatures from commit ${required.upstreamCommit}.`,
 );
