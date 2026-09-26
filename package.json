@@ -20,7 +20,7 @@
     "lint": "yarn workspace @collateral-rail/nextjs lint && yarn foundry:fmt",
     "typecheck": "yarn workspace @collateral-rail/foundry typecheck:runner && yarn workspace @collateral-rail/nextjs typecheck",
     "test": "yarn foundry:test && yarn test:runner",
-    "test:runner": "yarn workspace @collateral-rail/foundry test:runner",
+    "test:runner": "node --test scripts/test/*.test.mjs && yarn workspace @collateral-rail/foundry test:runner",
     "test:e2e": "yarn workspace @collateral-rail/nextjs test:e2e",
     "test:e2e:live": "yarn workspace @collateral-rail/nextjs test:e2e:live",
     "test:e2e:production": "PLAYWRIGHT_SERVER_MODE=production yarn workspace @collateral-rail/nextjs test:e2e",

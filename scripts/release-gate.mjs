@@ -1,6 +1,5 @@
-import { createHash } from "node:crypto";
-import { existsSync, lstatSync, readFileSync, readlinkSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { workingTreeSnapshot } from "./lib/working-tree-snapshot.mjs";
 
 const scripts = [
   "format:check",
@@ -23,68 +22,6 @@ const scripts = [
   "harness:validate",
 ];
 const yarnCommand = process.platform === "win32" ? "yarn.cmd" : "yarn";
-
-function workingFiles() {
-  const result = spawnSync(
-    "git",
-    ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-    {
-      encoding: "utf8",
-    },
-  );
-
-  if (result.error || result.status !== 0) {
-    throw (
-      result.error ?? new Error(result.stderr.trim() || "git ls-files failed")
-    );
-  }
-
-  return [...new Set(result.stdout.split("\0").filter(Boolean))].sort();
-}
-
-function gitStatus() {
-  const result = spawnSync(
-    "git",
-    ["status", "--porcelain=v2", "-z", "--untracked-files=all"],
-    {
-      encoding: "utf8",
-    },
-  );
-
-  if (result.error || result.status !== 0) {
-    throw (
-      result.error ?? new Error(result.stderr.trim() || "git status failed")
-    );
-  }
-
-  return result.stdout;
-}
-
-function workingTreeSnapshot() {
-  const hash = createHash("sha256");
-  hash.update(gitStatus());
-  hash.update("\0");
-
-  for (const file of workingFiles()) {
-    hash.update(file);
-    hash.update("\0");
-
-    if (!existsSync(file)) {
-      hash.update("missing\0");
-      continue;
-    }
-
-    const stat = lstatSync(file);
-    hash.update(String(stat.mode));
-    hash.update("\0");
-    hash.update(
-      stat.isSymbolicLink() ? readlinkSync(file) : readFileSync(file),
-    );
-    hash.update("\0");
-  }
-
-  return hash.digest("hex");
-}
 
 const initialSnapshot = workingTreeSnapshot();
 let failedScript = null;
