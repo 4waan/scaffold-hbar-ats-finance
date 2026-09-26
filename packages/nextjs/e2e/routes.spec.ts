@@ -5,9 +5,12 @@ test("home presents one promise, one recipe, and one proof frame", async ({
 }) => {
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Make ATS assets financeable." }),
+    page.getByRole("heading", { name: "Finance an ATS security." }),
   ).toBeVisible();
   await expect(page.getByText("Reference mode", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("No wallet required", { exact: true }),
+  ).toBeVisible();
   await page.getByRole("tab", { name: "Maturity Bridge" }).click();
   await expect(
     page.getByRole("heading", { name: "Maturity Bridge" }),
@@ -45,8 +48,32 @@ test("facility expands only one lifecycle step", async ({ page }) => {
   ).toBeVisible();
   await page.getByRole("button", { name: /Price and fund/i }).click();
   const activeStep = page.locator('.facilityStep[data-active="true"]');
-  await expect(activeStep.getByText("Lender", { exact: true })).toBeVisible();
+  await expect(activeStep.locator(".stepHeading small")).toBeVisible();
+  await expect(activeStep.locator(".stepHeading small")).toHaveText(
+    "Funding lender",
+  );
   await expect(activeStep.locator(".primaryButton")).toHaveCount(1);
+});
+
+test("facility preserves only validated workflow identifiers", async ({
+  page,
+}) => {
+  const offer = `0x${"1".repeat(64)}`;
+  const position = `0x${"2".repeat(64)}`;
+  await page.goto(
+    `/facility?recipe=term-credit&mode=reference&offer=${offer}&position=${position}&terminal=settle`,
+  );
+  await page.getByRole("button", { name: /Repay or settle/i }).click();
+  await expect(
+    page.getByRole("button", { name: "Default path" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Live wallet" }).click();
+  const url = new URL(page.url());
+  expect(url.searchParams.get("recipe")).toBe("term-credit");
+  expect(url.searchParams.get("mode")).toBe("live");
+  expect(url.searchParams.get("offer")).toBe(offer);
+  expect(url.searchParams.get("position")).toBe(position);
+  expect(url.searchParams.get("terminal")).toBe("settle");
 });
 
 test("verification keeps financial claims and balances distinct", async ({
@@ -74,6 +101,12 @@ test("verification keeps financial claims and balances distinct", async ({
     page.getByText("Cash liabilities", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText("HSS reserve", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("State read block", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Final state and solvency were read at an exact block."),
+  ).toBeVisible();
 });
 
 test("shareable recipe state and mobile layout remain bounded", async ({
@@ -94,4 +127,31 @@ test("shareable recipe state and mobile layout remain bounded", async ({
   await expect(
     page.locator('.facilityStep[data-active="true"] .primaryButton'),
   ).toHaveCount(1);
+});
+
+test("verification rejects an empty Mirror result", async ({ page }) => {
+  await page.route(
+    "https://testnet.mirrornode.hedera.com/api/v1/transactions/**",
+    (route) =>
+      route.fulfill({
+        body: JSON.stringify({ transactions: [] }),
+        contentType: "application/json",
+      }),
+  );
+  await page.goto("/verify?position=repaid");
+  await page.getByText("Verify another live position").click();
+  await page.getByLabel("Transaction ID or hash").fill(`0x${"a".repeat(64)}`);
+  await page.getByRole("button", { name: "Query Mirror Node" }).click();
+  await expect(page.getByText(/returned an empty result/i)).toBeVisible();
+});
+
+test("production security policy excludes script evaluation", async ({
+  request,
+}) => {
+  const response = await request.get("/");
+  const policy = response.headers()["content-security-policy"] ?? "";
+  expect(policy).toContain("script-src 'self' 'unsafe-inline'");
+  if (process.env.PLAYWRIGHT_SERVER_MODE === "production") {
+    expect(policy).not.toContain("unsafe-eval");
+  }
 });

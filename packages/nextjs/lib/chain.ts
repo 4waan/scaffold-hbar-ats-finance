@@ -22,7 +22,7 @@ export const rpcUrl = safeRpcUrl(process.env.NEXT_PUBLIC_HEDERA_RPC_URL);
 export const hederaTestnet = defineChain({
   id: HEDERA_TESTNET_CHAIN_ID,
   name: "Hedera Testnet",
-  nativeCurrency: { name: "HBAR", symbol: "HBAR", decimals: 8 },
+  nativeCurrency: { name: "HBAR", symbol: "HBAR", decimals: 18 },
   rpcUrls: { default: { http: [rpcUrl] } },
   blockExplorers: {
     default: { name: "HashScan", url: "https://hashscan.io/testnet" },
@@ -45,3 +45,5 @@ export const addresses = {
 export const isLiveMode = Boolean(
   addresses.rail && addresses.atsToken && addresses.oracle,
 );
+
+export { HEDERA_TESTNET_CHAIN_ID };

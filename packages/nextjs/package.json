@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:live": "PLAYWRIGHT_LIVE_FIXTURE=1 playwright test --grep @live"
   },
   "dependencies": {
     "@collateral-rail/shared": "workspace:*",

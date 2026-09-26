@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { isLiveMode } from "@/lib/chain";
 
@@ -9,9 +10,14 @@ function shortAddress(address: string) {
 }
 
 export function SiteHeader() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { address, isConnected } = useAccount();
   const { connectors, connect, isPending } = useConnect();
   const { disconnect } = useDisconnect();
+  const requestedLive =
+    pathname === "/facility" && searchParams.get("mode") === "live";
+  const walletMode = isLiveMode && requestedLive;
 
   return (
     <header className="siteHeader">
@@ -27,10 +33,16 @@ export function SiteHeader() {
         <Link href="/verify">Verify</Link>
       </nav>
       <div className="headerActions">
-        <span className={`modePill ${isLiveMode ? "live" : "reference"}`}>
-          {isLiveMode ? "Live testnet" : "Reference mode"}
+        <span className={`modePill ${walletMode ? "live" : "reference"}`}>
+          {walletMode
+            ? "Live testnet"
+            : requestedLive
+              ? "Live unavailable"
+              : "Reference mode"}
         </span>
-        {isConnected && address ? (
+        {!walletMode ? (
+          <span className="walletButton noWallet">No wallet required</span>
+        ) : isConnected && address ? (
           <button
             className="walletButton"
             onClick={() => disconnect()}

@@ -5,23 +5,56 @@ import {
   formatUnits,
   isAddress,
   isHex,
+  parseEventLogs,
   parseUnits,
   type Address,
   type Hex,
+  type TransactionReceipt,
 } from "viem";
-import { useAccount, usePublicClient, useWriteContract } from "wagmi";
+import {
+  useAccount,
+  usePublicClient,
+  useSwitchChain,
+  useWriteContract,
+} from "wagmi";
 import {
   facilityRecipes,
   getRecipe,
   type FacilityRecipe,
 } from "@collateral-rail/shared/recipes";
+import { tinybarToWeibar } from "@collateral-rail/shared/hedera";
 import { FacilityStep } from "@/components/FacilityStep";
-import { addresses, isLiveMode } from "@/lib/chain";
+import { ProofReference } from "@/components/ProofReference";
+import { addresses, HEDERA_TESTNET_CHAIN_ID, isLiveMode } from "@/lib/chain";
 import { atsAbi, oracleAbi, pythAbi, railAbi } from "@/lib/contracts";
+import {
+  isRecord,
+  readJson,
+  RemoteReadError,
+  remoteReadMessage,
+} from "@/lib/network";
+import { hashScanTransaction } from "@/lib/proofs";
 import { referenceDeployment } from "@/lib/reference";
 
 const PRICE_ID =
   "0x3728e591097635310e6341af53db8b7ee42da9b3a8d918f9463ce9cca886dfbd";
+
+const automationOutcomeAbi = [
+  {
+    type: "event",
+    name: "AutomationReserved",
+    inputs: [
+      { indexed: true, name: "positionId", type: "bytes32" },
+      { indexed: true, name: "scheduleAddress", type: "address" },
+      { indexed: false, name: "executionSecond", type: "uint64" },
+    ],
+  },
+  {
+    type: "event",
+    name: "AutomationUnavailable",
+    inputs: [{ indexed: true, name: "positionId", type: "bytes32" }],
+  },
+] as const;
 
 const steps = [
   ["Choose recipe", "Read only"],
@@ -37,30 +70,223 @@ type Mode = "reference" | "live";
 
 type FacilityConsoleProps = {
   initialMode: Mode;
+  initialOfferId: string;
+  initialPositionId: string;
   initialRecipeId: string;
+  initialTerminalChoice: "repay" | "settle";
+};
+
+type ActionState = "idle" | "signature" | "mining" | "success" | "error";
+
+type QueryState = {
+  mode: Mode;
+  offer: string;
+  position: string;
+  recipe: string;
+  terminal: "repay" | "settle";
 };
 
 function hbar(tinybar: bigint) {
   return `${formatUnits(tinybar, 8)} HBAR`;
 }
 
-function errorText(error: unknown) {
-  return error instanceof Error
-    ? error.message.split("\n")[0]
-    : "The transaction could not be prepared.";
+const ERROR_GUIDANCE: Record<string, string> = {
+  AutomationFundsLocked:
+    "Reserved HSS funds cannot be withdrawn while a position still depends on them.",
+  BeyondAssetMaturity:
+    "The facility would outlive the ATS asset. Shorten the term before retrying.",
+  ConfidenceTooWide:
+    "The Pyth confidence band is too wide. Wait for a healthier quote before retrying.",
+  HoldCallFailed:
+    "ATS could not create or release the hold. Confirm roles, KYC, allowance, and free balance.",
+  IncorrectFunding:
+    "The HBAR amount no longer matches the preview. Refresh the quote before funding.",
+  IncorrectUpdateFee:
+    "The Pyth update fee changed. Fetch a new Hermes payload and retry.",
+  InsufficientAllowance:
+    "The borrower must approve enough ATS collateral for this rail before acceptance.",
+  InsufficientCollateralCoverage:
+    "The requested principal exceeds the configured collateral advance ceiling.",
+  InsufficientFreeBalance:
+    "The borrower does not have enough free ATS units. Held units cannot be reused.",
+  Insolvent:
+    "The action would violate the rail solvency invariant, so it was rejected.",
+  InvalidPrice:
+    "Pyth did not return a positive HBAR price. Wait for a valid update before retrying.",
+  InvalidTerms:
+    "The facility terms fall outside the deployed rail policy. Review amount, rate, term, and expiry.",
+  InvalidHold:
+    "ATS returned a hold that did not match the required amount, parties, partition, or expiry.",
+  KycRequired:
+    "Both counterparties need active ATS KYC before this action can succeed.",
+  NativeTransferFailed:
+    "The HBAR credit transfer failed. The credit remains available for a later withdrawal.",
+  NotBorrower: "Connect the borrower wallet for this action.",
+  NotLender: "Connect the lender wallet for this action.",
+  NotMatured:
+    "This position is not overdue yet. Wait until maturity before permissionless settlement.",
+  NothingToWithdraw: "This wallet has no HBAR credit available to withdraw.",
+  OfferExpired: "This offer has expired. The lender must fund a new offer.",
+  OfferNotFound: "No active funded offer matches that offer ID.",
+  PositionNotOpen: "That position is already terminal or does not exist.",
+  QuoteMoved:
+    "The HBAR quote moved beyond policy. Preview the offer again before acceptance.",
+  SelfDealing: "The lender and borrower must be different Hedera accounts.",
+  StalePrice:
+    "The stored Pyth price is stale. Submit a fresh Hermes update, then retry.",
+};
+
+function rawError(error: unknown) {
+  if (error instanceof Error) return error.message.slice(0, 2_000);
+  return String(error).slice(0, 2_000);
+}
+
+function actionError(error: unknown) {
+  const technical = rawError(error);
+  const coded = error as {
+    code?: number;
+    name?: string;
+    shortMessage?: string;
+  };
+  if (error instanceof RemoteReadError) {
+    return {
+      message: remoteReadMessage(error, "Hermes"),
+      technical,
+    };
+  }
+  if (
+    coded.code === 4001 ||
+    coded.name === "UserRejectedRequestError" ||
+    /user rejected|user denied/i.test(technical)
+  ) {
+    return {
+      message: "The wallet signature was rejected. No workflow state changed.",
+      technical,
+    };
+  }
+  if (/timed out|timeout/i.test(technical)) {
+    return {
+      message:
+        "Confirmation timed out. Check the transaction receipt before retrying.",
+      technical,
+    };
+  }
+  for (const [name, message] of Object.entries(ERROR_GUIDANCE)) {
+    if (technical.includes(name)) return { message, technical };
+  }
+  if (/revert|reverted/i.test(technical)) {
+    return {
+      message:
+        "The transaction reverted. No step was advanced. Review the technical error for the contract reason.",
+      technical,
+    };
+  }
+  return {
+    message: coded.shortMessage ?? "The transaction could not be confirmed.",
+    technical,
+  };
 }
 
 function policyLine(recipe: FacilityRecipe) {
   return `${recipe.policy.maximumAdvanceBps / 100}% advance · ${recipe.policy.maximumAnnualRateBps / 100}% maximum APR · ${recipe.policy.maximumTermSeconds}s maximum term`;
 }
 
+function sameAddress(left: string | undefined, right: string | undefined) {
+  return Boolean(left && right && left.toLowerCase() === right.toLowerCase());
+}
+
+function shortAddress(value: string) {
+  return `${value.slice(0, 6)}…${value.slice(-4)}`;
+}
+
+function receiptId(
+  receipt: TransactionReceipt,
+  eventName: "OfferFunded" | "PositionOpened",
+) {
+  const events = parseEventLogs({
+    abi: railAbi,
+    eventName,
+    logs: receipt.logs,
+    strict: true,
+  });
+  if (events.length !== 1) {
+    throw new Error(
+      `The confirmed receipt contained ${events.length} ${eventName} events instead of one.`,
+    );
+  }
+  const args = events[0].args as { offerId?: Hex; positionId?: Hex };
+  const id = eventName === "OfferFunded" ? args.offerId : args.positionId;
+  if (!id || !isHex(id) || id.length !== 66) {
+    throw new Error(`${eventName} did not contain a valid identifier.`);
+  }
+  return id;
+}
+
+function automationReceiptMessage(receipt: TransactionReceipt) {
+  const events = parseEventLogs({
+    abi: automationOutcomeAbi,
+    logs: receipt.logs,
+    strict: true,
+  });
+  if (events.some((event) => event.eventName === "AutomationReserved")) {
+    return "Offer acceptance is confirmed and an HSS maturity schedule is reserved.";
+  }
+  if (events.some((event) => event.eventName === "AutomationUnavailable")) {
+    return "Offer acceptance is confirmed. HSS was unavailable, so permissionless settlement remains the fallback.";
+  }
+  return "Offer acceptance is confirmed. Check the position state for its automation outcome.";
+}
+
+function hermesPayload(value: unknown): Hex[] {
+  if (!isRecord(value) || !isRecord(value.binary)) {
+    throw new RemoteReadError(
+      "malformed",
+      "Hermes returned an unexpected response shape.",
+    );
+  }
+  const values = value.binary.data;
+  if (!Array.isArray(values)) {
+    throw new RemoteReadError(
+      "malformed",
+      "Hermes omitted its binary update array.",
+    );
+  }
+  if (values.length === 0) {
+    throw new RemoteReadError("empty", "Hermes returned no update payload.");
+  }
+  if (values.length > 8) {
+    throw new RemoteReadError("size", "Hermes returned too many updates.");
+  }
+  return values.map((entry) => {
+    if (
+      typeof entry !== "string" ||
+      entry.length === 0 ||
+      entry.length > 64_000 ||
+      entry.length % 2 !== 0 ||
+      !/^[a-fA-F0-9]+$/.test(entry)
+    ) {
+      throw new RemoteReadError(
+        typeof entry === "string" && entry.length > 64_000
+          ? "size"
+          : "malformed",
+        "Hermes returned invalid update bytes.",
+      );
+    }
+    return `0x${entry}` as Hex;
+  });
+}
+
 export function FacilityConsole({
   initialMode,
+  initialOfferId,
+  initialPositionId,
   initialRecipeId,
+  initialTerminalChoice,
 }: FacilityConsoleProps) {
-  const { address, isConnected } = useAccount();
+  const { address, chainId, isConnected } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync, isPending } = useWriteContract();
+  const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
   const [mode, setModeState] = useState<Mode>(initialMode);
   const [recipe, setRecipeState] = useState(() => getRecipe(initialRecipeId));
   const [activeStep, setActiveStep] = useState(0);
@@ -78,16 +304,24 @@ export function FacilityConsole({
   const [termSeconds, setTermSeconds] = useState(
     String(recipe.defaultTerms.termSeconds),
   );
-  const [positionId, setPositionId] = useState("");
+  const [offerId, setOfferId] = useState(initialOfferId);
+  const [positionId, setPositionId] = useState(initialPositionId);
+  const [lender, setLender] = useState("");
   const [preview, setPreview] = useState<Preview>();
   const [allowanceSubmitted, setAllowanceSubmitted] = useState(false);
-  const [terminalChoice, setTerminalChoice] = useState<"repay" | "settle">(
-    "repay",
+  const [terminalChoice, setTerminalChoiceState] = useState<"repay" | "settle">(
+    initialTerminalChoice,
   );
-  const [message, setMessage] = useState(
-    "Reference mode is ready. No wallet or secret is required.",
+  const [message, setMessage] = useState(() =>
+    initialMode === "reference"
+      ? "Reference mode is ready. No wallet or secret is required."
+      : isLiveMode
+        ? "Live mode is ready for a Hedera testnet wallet."
+        : "Live mode is unavailable until public deployment addresses are configured.",
   );
   const [transactionHash, setTransactionHash] = useState<Hex>();
+  const [actionState, setActionState] = useState<ActionState>("idle");
+  const [technicalError, setTechnicalError] = useState("");
 
   const terms = useMemo(() => {
     if (!isAddress(borrower)) return undefined;
@@ -105,21 +339,64 @@ export function FacilityConsole({
     }
   }, [borrower, collateral, principalUsd, rateBps, termSeconds]);
 
-  const ready =
-    mode === "live" && isLiveMode && isConnected && Boolean(publicClient);
+  const canRead = mode === "live" && isLiveMode && Boolean(publicClient);
+  const correctChain = chainId === HEDERA_TESTNET_CHAIN_ID;
+  const canWrite =
+    canRead && isConnected && correctChain && Boolean(address) && !isPending;
+  const actionBusy =
+    isPending || actionState === "signature" || actionState === "mining";
+  const borrowerSigner = sameAddress(address, borrower);
+  const lenderSigner = !lender || sameAddress(address, lender);
 
-  function replaceUrl(nextRecipe: string, nextMode: Mode) {
-    window.history.replaceState(
-      null,
-      "",
-      `/facility?recipe=${encodeURIComponent(nextRecipe)}&mode=${nextMode}`,
-    );
+  function validBytes32(value: string): value is Hex {
+    return isHex(value) && value.length === 66;
+  }
+
+  function replaceUrl(next: Partial<QueryState> = {}) {
+    const state: QueryState = {
+      mode: next.mode ?? mode,
+      offer: next.offer ?? offerId,
+      position: next.position ?? positionId,
+      recipe: next.recipe ?? recipe.id,
+      terminal: next.terminal ?? terminalChoice,
+    };
+    const params = new URLSearchParams();
+    params.set("recipe", getRecipe(state.recipe).id);
+    params.set("mode", state.mode === "live" ? "live" : "reference");
+    if (validBytes32(state.offer)) params.set("offer", state.offer);
+    if (validBytes32(state.position)) params.set("position", state.position);
+    params.set("terminal", state.terminal === "settle" ? "settle" : "repay");
+    window.history.replaceState(null, "", `/facility?${params.toString()}`);
+  }
+
+  function updateOfferId(value: string) {
+    setOfferId(value);
+    replaceUrl({ offer: value });
+  }
+
+  function updatePositionId(value: string) {
+    setPositionId(value);
+    replaceUrl({ position: value });
+  }
+
+  function setTerminalChoice(value: "repay" | "settle") {
+    setTerminalChoiceState(value);
+    replaceUrl({ terminal: value });
   }
 
   function setMode(nextMode: Mode) {
     setModeState(nextMode);
     setActiveStep(0);
-    replaceUrl(recipe.id, nextMode);
+    setActionState("idle");
+    setTechnicalError("");
+    setMessage(
+      nextMode === "reference"
+        ? "Reference mode is ready. No wallet or secret is required."
+        : isLiveMode
+          ? "Live mode is ready for a Hedera testnet wallet."
+          : "Live mode is unavailable until public deployment addresses are configured.",
+    );
+    replaceUrl({ mode: nextMode });
   }
 
   function chooseRecipe(id: string) {
@@ -131,7 +408,7 @@ export function FacilityConsole({
     setTermSeconds(String(next.defaultTerms.termSeconds));
     setPreview(undefined);
     setCompleted(new Set());
-    replaceUrl(next.id, mode);
+    replaceUrl({ recipe: next.id });
   }
 
   function finishStep(
@@ -147,17 +424,55 @@ export function FacilityConsole({
 
   async function run(
     label: string,
-    action: () => Promise<Hex | void>,
-    onSuccess?: () => void,
+    action: () => Promise<Hex>,
+    onReceipt?: (receipt: TransactionReceipt) => string | void,
   ) {
+    if (!publicClient || !canWrite) {
+      setActionState("error");
+      setMessage(
+        !correctChain
+          ? "Switch the connected wallet to Hedera testnet before signing."
+          : "Connect a wallet before submitting this transaction.",
+      );
+      return;
+    }
     try {
-      setMessage(`${label} is waiting for confirmation.`);
+      setTechnicalError("");
+      setActionState("signature");
+      setMessage(`${label} is waiting for a wallet signature.`);
       const hash = await action();
-      if (hash) setTransactionHash(hash);
-      setMessage(`${label} submitted successfully.`);
-      onSuccess?.();
+      setTransactionHash(hash);
+      setActionState("mining");
+      setMessage(`${label} was submitted. Waiting for a mined receipt.`);
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash,
+        confirmations: 1,
+        timeout: 120_000,
+      });
+      if (receipt.status !== "success") {
+        throw new Error(`${label} reverted in its mined receipt.`);
+      }
+      const receiptMessage = onReceipt?.(receipt);
+      setActionState("success");
+      setMessage(receiptMessage ?? `${label} is confirmed on Hedera testnet.`);
     } catch (error) {
-      setMessage(errorText(error));
+      const described = actionError(error);
+      setActionState("error");
+      setMessage(described.message);
+      setTechnicalError(described.technical);
+    }
+  }
+
+  async function switchToTestnet() {
+    try {
+      setTechnicalError("");
+      await switchChainAsync({ chainId: HEDERA_TESTNET_CHAIN_ID });
+      setMessage("The wallet is connected to Hedera testnet.");
+    } catch (error) {
+      const described = actionError(error);
+      setActionState("error");
+      setMessage(described.message);
+      setTechnicalError(described.technical);
     }
   }
 
@@ -169,6 +484,7 @@ export function FacilityConsole({
       return;
     }
     try {
+      setTechnicalError("");
       const result = await publicClient.readContract({
         address: addresses.rail,
         abi: railAbi,
@@ -178,7 +494,9 @@ export function FacilityConsole({
       setPreview(result);
       setMessage("Quote read from the rail using its validated Pyth price.");
     } catch (error) {
-      setMessage(errorText(error));
+      const described = actionError(error);
+      setMessage(described.message);
+      setTechnicalError(described.technical);
     }
   }
 
@@ -187,24 +505,12 @@ export function FacilityConsole({
     const oracleAddress = addresses.oracle;
     await run("Pyth update", async () => {
       const url = `https://hermes.pyth.network/v2/updates/price/latest?ids[]=${PRICE_ID.slice(2)}&encoding=hex`;
-      const response = await fetch(url, {
-        method: "GET",
-        headers: { Accept: "application/json" },
+      const payload = await readJson(url, {
+        origin: "https://hermes.pyth.network",
+        pathPrefix: "/v2/updates/price/latest",
+        maxBytes: 192_000,
       });
-      if (!response.ok) {
-        throw new Error(`Hermes returned HTTP ${response.status}.`);
-      }
-      const payload = (await response.json()) as {
-        binary?: { data?: string[] };
-      };
-      const values = payload.binary?.data ?? [];
-      if (
-        values.length === 0 ||
-        values.some((value) => !/^[a-fA-F0-9]+$/.test(value))
-      ) {
-        throw new Error("Hermes returned no valid update payload.");
-      }
-      const updateData = values.map((value) => `0x${value}` as Hex);
+      const updateData = hermesPayload(payload);
       const fee = await publicClient.readContract({
         address: addresses.pyth,
         abi: pythAbi,
@@ -216,13 +522,13 @@ export function FacilityConsole({
         abi: oracleAbi,
         functionName: "updatePrice",
         args: [updateData],
-        value: fee,
+        value: tinybarToWeibar(fee),
       });
     });
   }
 
   async function fund() {
-    if (!addresses.rail || !terms || !preview) return;
+    if (!addresses.rail || !terms || !preview || !address) return;
     await run(
       "Offer funding",
       () =>
@@ -231,9 +537,14 @@ export function FacilityConsole({
           abi: railAbi,
           functionName: "fundOffer",
           args: [terms],
-          value: preview[1],
+          value: tinybarToWeibar(preview[1]),
         }),
-      () => finishStep(2),
+      (receipt) => {
+        const confirmedOfferId = receiptId(receipt, "OfferFunded");
+        setLender(address);
+        updateOfferId(confirmedOfferId);
+        finishStep(2);
+      },
     );
   }
 
@@ -252,14 +563,16 @@ export function FacilityConsole({
     );
   }
 
+  function validOfferId(): Hex | undefined {
+    return validBytes32(offerId) ? offerId : undefined;
+  }
+
   function validPositionId(): Hex | undefined {
-    return isHex(positionId) && positionId.length === 66
-      ? (positionId as Hex)
-      : undefined;
+    return validBytes32(positionId) ? positionId : undefined;
   }
 
   async function accept() {
-    const id = validPositionId();
+    const id = validOfferId();
     if (!addresses.rail || !id) return;
     await run(
       "Offer acceptance",
@@ -270,12 +583,16 @@ export function FacilityConsole({
           functionName: "acceptOffer",
           args: [id],
         }),
-      () => finishStep(3),
+      (receipt) => {
+        updatePositionId(receiptId(receipt, "PositionOpened"));
+        finishStep(3);
+        return automationReceiptMessage(receipt);
+      },
     );
   }
 
   async function cancel() {
-    const id = validPositionId();
+    const id = validOfferId();
     if (!addresses.rail || !id) return;
     await run("Offer cancellation", () =>
       writeContractAsync({
@@ -304,7 +621,7 @@ export function FacilityConsole({
           abi: railAbi,
           functionName: "repay",
           args: [id],
-          value: position.repaymentTinybar,
+          value: tinybarToWeibar(position.repaymentTinybar),
         });
       },
       () => finishStep(4),
@@ -342,23 +659,30 @@ export function FacilityConsole({
   }
 
   function referenceBody(step: number) {
-    const selectedPosition =
-      referenceDeployment.positions[
-        step === 4 && terminalChoice === "settle" ? 1 : 0
-      ];
-    const lifecycle = referenceDeployment.lifecycle as Record<
-      string,
-      string | null
-    >;
-    const transactionKey = [
-      null,
-      null,
-      "fundedOffer",
-      "holdCreation",
-      terminalChoice === "repay" ? "repaidFacility" : "maturedDefault",
-      "liveConfigurationRead",
-    ][step];
-    const hash = transactionKey ? lifecycle[transactionKey] : null;
+    const selectedPosition = referenceDeployment.positions.find((candidate) =>
+      terminalChoice === "settle"
+        ? candidate.state === "DEFAULTED"
+        : candidate.state === "REPAID",
+    );
+    const lifecycle = referenceDeployment.lifecycle;
+    const primaryProof =
+      step === 2
+        ? lifecycle.fundedOffer
+        : step === 3
+          ? lifecycle.holdCreation
+          : step === 4
+            ? terminalChoice === "repay"
+              ? lifecycle.repaidFacility
+              : lifecycle.maturedDefault
+            : step === 5
+              ? lifecycle.liveConfigurationRead
+              : null;
+    const supportingProof =
+      step === 2
+        ? lifecycle.pythPriceUpdate
+        : step === 4 && terminalChoice === "settle"
+          ? lifecycle.hssScheduleCreation
+          : null;
 
     return (
       <div className="referenceStep">
@@ -432,16 +756,8 @@ export function FacilityConsole({
             Cash liabilities and HSS reserves are proven as separate balances.
           </p>
         )}
-        {hash && (
-          <a
-            className="proofLink"
-            href={`https://hashscan.io/testnet/transaction/${hash}`}
-            rel="noreferrer"
-            target="_blank"
-          >
-            Open this receipt on HashScan
-          </a>
-        )}
+        {supportingProof && <ProofReference proof={supportingProof} />}
+        {step >= 2 && <ProofReference proof={primaryProof} />}
         <button
           className="primaryButton"
           onClick={() => finishStep(step)}
@@ -450,6 +766,38 @@ export function FacilityConsole({
           {step === steps.length - 1 ? "Replay complete" : "Continue"}
         </button>
       </div>
+    );
+  }
+
+  function expectedActor(step: number) {
+    if (step === 0) return "Read only";
+    if (step === 1) return "Lender configures the terms";
+    if (step === 2) {
+      return lender ? `Lender ${shortAddress(lender)}` : "Funding lender";
+    }
+    if (step === 3) {
+      return isAddress(borrower)
+        ? `Borrower ${shortAddress(borrower)}`
+        : "Configured borrower";
+    }
+    if (step === 4) {
+      return terminalChoice === "repay"
+        ? isAddress(borrower)
+          ? `Borrower ${shortAddress(borrower)}`
+          : "Configured borrower"
+        : "Any testnet account after maturity";
+    }
+    return "Wallet with available credit";
+  }
+
+  function actorLine(step: number) {
+    return (
+      <p className="actorLine">
+        Expected actor: <b>{expectedActor(step)}</b>
+        {address
+          ? ` · Connected ${shortAddress(address)}`
+          : " · No wallet connected"}
+      </p>
     );
   }
 
@@ -472,6 +820,7 @@ export function FacilityConsole({
           </label>
           <p>{recipe.purpose}</p>
           <p className="monoLine">{policyLine(recipe)}</p>
+          {actorLine(step)}
           <button
             className="primaryButton"
             onClick={() => finishStep(0)}
@@ -486,12 +835,16 @@ export function FacilityConsole({
     if (step === 1) {
       return (
         <>
+          {actorLine(step)}
           <div className="compactForm">
             <label className="fieldLabel wide">
               Borrower address
               <input
                 value={borrower}
-                onChange={(event) => setBorrower(event.target.value)}
+                onChange={(event) => {
+                  setBorrower(event.target.value);
+                  setPreview(undefined);
+                }}
                 placeholder="0x..."
               />
             </label>
@@ -500,7 +853,10 @@ export function FacilityConsole({
               <input
                 inputMode="numeric"
                 value={collateral}
-                onChange={(event) => setCollateral(event.target.value)}
+                onChange={(event) => {
+                  setCollateral(event.target.value);
+                  setPreview(undefined);
+                }}
               />
             </label>
             <label className="fieldLabel">
@@ -508,7 +864,10 @@ export function FacilityConsole({
               <input
                 inputMode="decimal"
                 value={principalUsd}
-                onChange={(event) => setPrincipalUsd(event.target.value)}
+                onChange={(event) => {
+                  setPrincipalUsd(event.target.value);
+                  setPreview(undefined);
+                }}
               />
             </label>
             <label className="fieldLabel">
@@ -516,7 +875,10 @@ export function FacilityConsole({
               <input
                 inputMode="numeric"
                 value={rateBps}
-                onChange={(event) => setRateBps(event.target.value)}
+                onChange={(event) => {
+                  setRateBps(event.target.value);
+                  setPreview(undefined);
+                }}
               />
             </label>
             <label className="fieldLabel">
@@ -524,7 +886,10 @@ export function FacilityConsole({
               <input
                 inputMode="numeric"
                 value={termSeconds}
-                onChange={(event) => setTermSeconds(event.target.value)}
+                onChange={(event) => {
+                  setTermSeconds(event.target.value);
+                  setPreview(undefined);
+                }}
               />
             </label>
           </div>
@@ -543,6 +908,7 @@ export function FacilityConsole({
     if (step === 2) {
       return (
         <>
+          {actorLine(step)}
           <p>
             Pyth converts the USD cash terms into exact tinybar. It does not
             value the ATS security.
@@ -565,7 +931,11 @@ export function FacilityConsole({
           )}
           <button
             className="primaryButton"
-            disabled={!ready || !terms || isPending}
+            disabled={
+              !terms ||
+              actionBusy ||
+              (preview ? !canWrite || sameAddress(address, borrower) : !canRead)
+            }
             onClick={preview ? fund : quote}
             type="button"
           >
@@ -579,7 +949,7 @@ export function FacilityConsole({
             </p>
             <button
               className="secondaryButton"
-              disabled={!ready || isPending}
+              disabled={!canWrite || actionBusy}
               onClick={updatePyth}
               type="button"
             >
@@ -593,11 +963,12 @@ export function FacilityConsole({
     if (step === 3) {
       return (
         <>
+          {actorLine(step)}
           <label className="fieldLabel">
             Offer ID
             <input
-              value={positionId}
-              onChange={(event) => setPositionId(event.target.value)}
+              value={offerId}
+              onChange={(event) => updateOfferId(event.target.value)}
               placeholder="0x + 64 hex characters"
             />
           </label>
@@ -608,7 +979,10 @@ export function FacilityConsole({
           <button
             className="primaryButton"
             disabled={
-              !ready || isPending || (allowanceSubmitted && !validPositionId())
+              !canWrite ||
+              !borrowerSigner ||
+              actionBusy ||
+              (allowanceSubmitted && !validOfferId())
             }
             onClick={allowanceSubmitted ? accept : approve}
             type="button"
@@ -621,7 +995,9 @@ export function FacilityConsole({
             <summary>Technical details</summary>
             <button
               className="secondaryButton"
-              disabled={!ready || !validPositionId() || isPending}
+              disabled={
+                !canWrite || !lenderSigner || !validOfferId() || actionBusy
+              }
               onClick={cancel}
               type="button"
             >
@@ -635,11 +1011,12 @@ export function FacilityConsole({
     if (step === 4) {
       return (
         <>
+          {actorLine(step)}
           <label className="fieldLabel">
             Position ID
             <input
               value={positionId}
-              onChange={(event) => setPositionId(event.target.value)}
+              onChange={(event) => updatePositionId(event.target.value)}
               placeholder="0x + 64 hex characters"
             />
           </label>
@@ -661,7 +1038,12 @@ export function FacilityConsole({
           </div>
           <button
             className="primaryButton"
-            disabled={!ready || !validPositionId() || isPending}
+            disabled={
+              !canWrite ||
+              !validPositionId() ||
+              actionBusy ||
+              (terminalChoice === "repay" && !borrowerSigner)
+            }
             onClick={terminalChoice === "repay" ? repay : settle}
             type="button"
           >
@@ -680,13 +1062,14 @@ export function FacilityConsole({
 
     return (
       <>
+        {actorLine(step)}
         <p>
           Pull payments keep external HBAR transfers outside the facility state
           transition.
         </p>
         <button
           className="primaryButton"
-          disabled={!ready || isPending}
+          disabled={!canWrite || actionBusy}
           onClick={withdraw}
           type="button"
         >
@@ -695,6 +1078,8 @@ export function FacilityConsole({
       </>
     );
   }
+
+  const transactionLink = hashScanTransaction(transactionHash);
 
   return (
     <div className="workbenchShell">
@@ -741,16 +1126,34 @@ export function FacilityConsole({
         </div>
       )}
 
+      {mode === "live" && isLiveMode && isConnected && !correctChain && (
+        <div className="inlineNotice" role="alert">
+          <b>Wrong network.</b>
+          <span>
+            The connected wallet is on chain {chainId}. Transactions require
+            Hedera testnet chain {HEDERA_TESTNET_CHAIN_ID}.
+          </span>
+          <button
+            className="secondaryButton"
+            disabled={isSwitching}
+            onClick={switchToTestnet}
+            type="button"
+          >
+            {isSwitching ? "Switching" : "Switch to testnet"}
+          </button>
+        </div>
+      )}
+
       <div className="facilitySteps">
         {steps.map(([title, actor], index) => (
           <FacilityStep
             active={activeStep === index}
-            actor={actor}
+            actor={mode === "live" ? expectedActor(index) : actor}
             completed={completed.has(index)}
             index={index}
             key={title}
             onSelect={() => setActiveStep(index)}
-            receipt={mode === "reference" ? "Reviewed" : "Submitted"}
+            receipt={mode === "reference" ? "Reviewed" : "Confirmed"}
             title={title}
           >
             {mode === "reference" ? referenceBody(index) : liveBody(index)}
@@ -759,18 +1162,31 @@ export function FacilityConsole({
       </div>
 
       <div className="statusLine" role="status">
+        <b className="actionState" data-state={actionState}>
+          {actionState === "signature"
+            ? "Awaiting signature"
+            : actionState === "mining"
+              ? "Awaiting receipt"
+              : actionState === "success"
+                ? "Confirmed"
+                : actionState === "error"
+                  ? "Action required"
+                  : "Ready"}
+        </b>
         <span>{message}</span>
-        {transactionHash && (
-          <a
-            href={`https://hashscan.io/testnet/transaction/${transactionHash}`}
-            rel="noreferrer"
-            target="_blank"
-          >
+        {transactionLink && (
+          <a href={transactionLink} rel="noopener noreferrer" target="_blank">
             View receipt
           </a>
         )}
-        {address && <small>Signer {address}</small>}
+        {mode === "live" && address && <small>Signer {address}</small>}
       </div>
+      {technicalError && (
+        <details className="technicalDetails errorDetails">
+          <summary>Technical error</summary>
+          <pre>{technicalError}</pre>
+        </details>
+      )}
     </div>
   );
 }

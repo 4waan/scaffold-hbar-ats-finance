@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { RecipeExplorer } from "@/components/RecipeExplorer";
+import { isTransactionProof } from "@/lib/proofs";
 import { referenceDeployment } from "@/lib/reference";
 
 export default function OverviewPage() {
@@ -9,26 +10,28 @@ export default function OverviewPage() {
   const defaulted = referenceDeployment.positions.find(
     (position) => position.state === "DEFAULTED",
   );
+  const verifiedTransactions =
+    referenceDeployment.transactions.filter(isTransactionProof).length;
 
   return (
     <main className="homePage">
       <section className="homeFrame promiseFrame">
         <div className="frameIndex">01 / Promise</div>
         <div className="promiseCopy">
-          <span className="kicker">A secure financing kernel for Hedera</span>
-          <h1>Make ATS assets financeable.</h1>
+          <span className="kicker">A reusable financing kernel for Hedera</span>
+          <h1>Finance an ATS security.</h1>
           <p>
-            Start with native custody, exact HBAR accounting, live cash
-            conversion, scheduled maturity, and evidence reconstruction already
-            composed. Change the financing policy, not the safety model.
+            Start without rebuilding custody, compliance ordering, oracle
+            safety, maturity automation, or public proof. Change the financing
+            policy, not the safety model.
           </p>
           <Link className="primaryButton" href="#recipes">
             Explore a financing recipe
           </Link>
         </div>
         <p className="frameAside">
-          One ATS asset. One bilateral obligation. One terminal collateral
-          action.
+          One tested kernel combines ATS holds, exact HBAR accounting, Pyth
+          pricing, HSS automation, and Mirror evidence.
         </p>
       </section>
 
@@ -47,6 +50,16 @@ export default function OverviewPage() {
             data, HSS schedules, Mirror receipts, and HashScan links. Missing
             proof stays visibly pending.
           </p>
+          <dl className="proofStatus" aria-label="Reference evidence status">
+            <div>
+              <dt>Status</dt>
+              <dd>{referenceDeployment.status}</dd>
+            </div>
+            <div>
+              <dt>Mirror-confirmed transactions</dt>
+              <dd>{verifiedTransactions}</dd>
+            </div>
+          </dl>
           <Link className="primaryButton" href="/verify?position=repaid">
             Verify the lifecycle
           </Link>

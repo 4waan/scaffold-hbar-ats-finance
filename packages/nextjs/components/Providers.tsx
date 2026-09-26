@@ -8,7 +8,9 @@ import { hederaTestnet, rpcUrl } from "@/lib/chain";
 const config = createConfig({
   chains: [hederaTestnet],
   connectors: [injected({ shimDisconnect: true })],
-  transports: { [hederaTestnet.id]: http(rpcUrl) },
+  transports: {
+    [hederaTestnet.id]: http(rpcUrl, { retryCount: 1, timeout: 10_000 }),
+  },
   ssr: true,
 });
 

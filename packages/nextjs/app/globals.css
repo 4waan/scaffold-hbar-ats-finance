@@ -158,9 +158,22 @@ pre {
   border-color: var(--ink);
 }
 
+.walletButton.noWallet {
+  display: inline-flex;
+  align-items: center;
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: default;
+}
+
 .walletButton:hover {
   background: var(--ink);
   color: var(--paper);
+}
+
+.walletButton.noWallet:hover {
+  background: transparent;
+  color: var(--muted);
 }
 
 main {
@@ -373,6 +386,35 @@ main {
   border-top: 1px solid var(--ink);
 }
 
+.proofStatus {
+  max-width: 680px;
+  margin: 28px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.proofStatus div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.proofStatus dt,
+.proofStatus dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
+.proofStatus dt {
+  color: var(--muted);
+}
+
+.proofStatus dd {
+  text-align: right;
+}
+
 .terminalLines > div {
   display: grid;
   gap: 7px;
@@ -467,8 +509,9 @@ main {
 
 .inlineNotice {
   display: grid;
-  grid-template-columns: 230px 1fr;
+  grid-template-columns: 230px 1fr auto;
   gap: 20px;
+  align-items: center;
   margin-top: 24px;
   padding: 14px 16px;
   border: 1px solid var(--warning);
@@ -530,6 +573,17 @@ main {
 .referenceStep > p {
   max-width: 660px;
   color: var(--muted);
+}
+
+.actorLine {
+  padding: 9px 11px;
+  border-left: 2px solid var(--green);
+  background: var(--green-soft);
+  font-size: 11px;
+}
+
+.actorLine b {
+  color: var(--ink);
 }
 
 .stepBody > .primaryButton,
@@ -626,6 +680,36 @@ select:focus {
   font-size: 11px;
 }
 
+.typedProof {
+  display: grid;
+  gap: 4px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.typedProof > span,
+.typedProof > small,
+.proofPending,
+.proofInvalid {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.typedProof > span {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.proofPending,
+.proofInvalid {
+  font-weight: 500;
+}
+
+.proofInvalid {
+  color: var(--danger);
+}
+
 .statusLine {
   display: flex;
   flex-wrap: wrap;
@@ -644,6 +728,31 @@ select:focus {
 
 .statusLine small {
   margin-left: auto;
+  overflow-wrap: anywhere;
+}
+
+.actionState {
+  color: var(--green);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.actionState[data-state="error"] {
+  color: var(--danger);
+}
+
+.errorDetails {
+  margin-top: 0;
+}
+
+.errorDetails pre {
+  max-height: 220px;
+  overflow: auto;
+  padding: 14px;
+  background: var(--ink);
+  color: #e6eee8;
+  font-size: 10px;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
@@ -694,7 +803,7 @@ select:focus {
 
 .proofClaims li {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 80px;
+  grid-template-columns: 34px minmax(0, 1fr) minmax(150px, 210px);
   gap: 16px;
   padding: 25px 0;
   border-bottom: 1px solid var(--line);
@@ -707,6 +816,18 @@ select:focus {
   font:
     400 10px "IBM Plex Mono",
     monospace;
+}
+
+.proofClaims .typedProof {
+  align-self: start;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  text-align: right;
+}
+
+.proofClaims .typedProof .proofLink {
+  margin-top: 5px;
 }
 
 .proofClaims h2 {
@@ -870,6 +991,10 @@ footer {
 
   .positionIdentity {
     position: static;
+  }
+
+  .inlineNotice {
+    grid-template-columns: 1fr;
   }
 
   .modeSwitch,

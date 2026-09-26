@@ -1,5 +1,8 @@
 {
-  "ignore": ["packages/foundry/scripts/build-deployment-record.mjs"],
+  "ignore": [
+    "packages/foundry/scripts/build-deployment-record.mjs",
+    "packages/nextjs/lib/network.test.ts"
+  ],
   "ignoreDependencies": ["@hiero-ledger/hiero-contracts"],
-  "ignoreBinaries": ["forge", "gitleaks"]
+  "ignoreBinaries": ["forge"]
 }

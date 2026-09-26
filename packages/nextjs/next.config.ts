@@ -1,5 +1,10 @@
 import type { NextConfig } from "next";
 
+const scriptPolicy =
+  process.env.NODE_ENV === "development"
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+    : "script-src 'self' 'unsafe-inline'";
+
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -9,7 +14,7 @@ const contentSecurityPolicy = [
   "img-src 'self' data:",
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
-  "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+  scriptPolicy,
   "connect-src 'self' https://testnet.hashio.io https://testnet.mirrornode.hedera.com https://hermes.pyth.network wss://relay.walletconnect.com https://relay.walletconnect.com",
 ].join("; ");
 
@@ -34,6 +39,7 @@ const nextConfig: NextConfig = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
           },
+          { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
         ],
       },
     ];
