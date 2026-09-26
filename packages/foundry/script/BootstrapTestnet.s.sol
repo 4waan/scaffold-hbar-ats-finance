@@ -5,6 +5,8 @@ import {IAtsFactory} from "../contracts/interfaces/IAtsFactory.sol";
 import {IAtsCollateralToken, IAtsIssuerSetup} from "../contracts/interfaces/IAtsCollateralToken.sol";
 import {IPyth} from "../contracts/interfaces/IPyth.sol";
 import {PythHbarUsdOracle} from "../contracts/oracle/PythHbarUsdOracle.sol";
+import {HederaExchangeRateOracle} from "../contracts/oracle/HederaExchangeRateOracle.sol";
+import {IHbarUsdOracle} from "../contracts/interfaces/IPyth.sol";
 import {AtsCollateralRail} from "../contracts/AtsCollateralRail.sol";
 import {RailAcceptance} from "../contracts/verifiers/RailAcceptance.sol";
 
@@ -34,6 +36,7 @@ contract BootstrapTestnet {
         address resolver;
         address factory;
         address pyth;
+        bool usePythOracle;
     }
 
     VmBootstrap internal constant vm = VmBootstrap(address(uint160(uint256(keccak256("hevm cheat code")))));
@@ -41,10 +44,10 @@ contract BootstrapTestnet {
     address internal constant DEFAULT_RESOLVER = 0xBA2D5FC2083A0b8f164c50e65d782087fBA18E0a;
     address internal constant DEFAULT_FACTORY = 0xd1F118A40f3b02883D35909eF2517e7EDd78379d;
     address internal constant DEFAULT_PYTH = 0xA2aa501b19aff244D90cc15a4Cf739D2725B5729;
-    address internal constant HSS = address(0x16b);
     bytes32 internal constant HBAR_USD_PRICE_ID = 0x3728e591097635310e6341af53db8b7ee42da9b3a8d918f9463ce9cca886dfbd;
     bytes32 internal constant DEFAULT_PARTITION = bytes32(uint256(1));
     bytes32 internal constant BOND_CONFIG = bytes32(uint256(2));
+    uint256 internal constant WEIBAR_PER_TINYBAR = 10_000_000_000;
 
     bytes32 internal constant DEFAULT_ADMIN_ROLE = bytes32(0);
     bytes32 internal constant ROLE_ISSUER = 0x5eeaf5602c75bf26e73b5206d0bd6ee82f621166255e5fd73cc06bc7bd84a95f;
@@ -59,7 +62,7 @@ contract BootstrapTestnet {
 
     function run() external {
         BootstrapConfig memory config = _readConfig();
-        _validateDependencies(config.resolver, config.factory, config.pyth);
+        _validateDependencies(config.resolver, config.factory, config.pyth, config.usePythOracle);
 
         uint256 maturity = block.timestamp + 730 days;
         IAtsFactory.BondData memory bond = _bond(config.operator, maturity, config.resolver);
@@ -80,11 +83,15 @@ contract BootstrapTestnet {
         }
         IAtsIssuerSetup(token).issue(config.borrower, 1_000, bytes(""));
 
-        PythHbarUsdOracle priceOracle = new PythHbarUsdOracle(IPyth(config.pyth), HBAR_USD_PRICE_ID);
+        IHbarUsdOracle priceOracle = config.usePythOracle
+            ? IHbarUsdOracle(address(new PythHbarUsdOracle(IPyth(config.pyth), HBAR_USD_PRICE_ID)))
+            : IHbarUsdOracle(address(new HederaExchangeRateOracle()));
         AtsCollateralRail rail = new AtsCollateralRail(
             IAtsCollateralToken(token), DEFAULT_PARTITION, priceOracle, 0, 100 * 1e8, _readPolicy(), config.operator
         );
-        rail.fundAutomation{value: 2 * rail.HSS_RESERVE_TINYBAR()}();
+        // Foundry signs an EthereumTransaction value in weibars. Hedera converts it
+        // to tinybars before exposing msg.value to the deployed rail.
+        rail.fundAutomation{value: 2 * rail.HSS_RESERVE_TINYBAR() * WEIBAR_PER_TINYBAR}();
         RailAcceptance acceptance = new RailAcceptance(rail);
         vm.stopBroadcast();
 
@@ -101,6 +108,7 @@ contract BootstrapTestnet {
         config.resolver = vm.envOr("ATS_RESOLVER_ADDRESS", DEFAULT_RESOLVER);
         config.factory = vm.envOr("ATS_FACTORY_ADDRESS", DEFAULT_FACTORY);
         config.pyth = vm.envOr("PYTH_ADDRESS", DEFAULT_PYTH);
+        config.usePythOracle = vm.envOr("USE_PYTH_ORACLE", uint256(0)) == 1;
     }
 
     function _startBroadcast(address operator) internal {
@@ -114,14 +122,14 @@ contract BootstrapTestnet {
         vm.startBroadcast(privateKey);
     }
 
-    function _validateDependencies(address resolver, address factory, address pyth) internal view {
+    function _validateDependencies(address resolver, address factory, address pyth, bool usePythOracle) internal view {
         if (resolver.code.length == 0) revert DependencyUnavailable(resolver);
         if (factory.code.length == 0) revert DependencyUnavailable(factory);
-        if (pyth.code.length == 0) revert DependencyUnavailable(pyth);
-        (bool success, bytes memory result) = HSS.staticcall(
-            abi.encodeWithSignature("hasScheduleCapacity(uint256,uint256)", block.timestamp + 10, uint256(750_000))
-        );
-        if (!success || result.length < 32) revert DependencyUnavailable(HSS);
+        if (usePythOracle && pyth.code.length == 0) revert DependencyUnavailable(pyth);
+        // The TypeScript runner checks HSS capacity directly through Hedera
+        // JSON RPC before this script starts. Forge's local script EVM cannot
+        // execute Hedera system contracts, so duplicating that call here would
+        // reject a healthy network before any transaction is broadcast.
     }
 
     function _validateLiveConfiguration(
@@ -139,6 +147,8 @@ contract BootstrapTestnet {
                 || runtime.getKycStatusFor(borrower) != IAtsCollateralToken.KycStatus.GRANTED
                 || runtime.getMaturityDate() != maturity || !runtime.hasRole(ROLE_ISSUER, operator)
                 || !runtime.hasRole(ROLE_KYC, operator) || !runtime.hasRole(ROLE_SSI_MANAGER, operator)
+                || runtime.isClearingActivated() || runtime.decimals() != 0 || runtime.getNominalValue() != 10_000
+                || runtime.getNominalValueDecimals() != 2 || runtime.getNominalValueCurrency() != bytes3("USD")
         ) revert ConfigurationMismatch();
     }
 

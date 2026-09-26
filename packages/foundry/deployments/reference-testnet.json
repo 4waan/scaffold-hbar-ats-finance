@@ -1,48 +1,518 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "network": "hedera-testnet",
   "chainId": 296,
-  "status": "awaiting-verified-publication",
-  "generatedAt": null,
-  "recipeId": null,
-  "policy": null,
+  "status": "verified",
+  "generatedAt": "2026-09-26T14:30:58.014Z",
+  "recipeId": "term-credit",
+  "policy": {
+    "maximumAdvanceBps": 7000,
+    "maximumAnnualRateBps": 10000,
+    "maximumQuoteMovementBps": 100,
+    "minimumTermSeconds": 120,
+    "maximumTermSeconds": 31536000,
+    "maximumOfferLifetimeSeconds": 86400
+  },
   "addresses": {
     "factory": "0xd1F118A40f3b02883D35909eF2517e7EDd78379d",
     "resolver": "0xBA2D5FC2083A0b8f164c50e65d782087fBA18E0a",
-    "pyth": "0xA2aa501b19aff244D90cc15a4Cf739D2725B5729",
-    "atsToken": null,
-    "oracle": null,
-    "rail": null,
-    "acceptance": null
+    "pyth": null,
+    "exchangeRateSystem": "0x0000000000000000000000000000000000000168",
+    "atsToken": "0xe4E087dC047798bCD76EF6DDDe58134D87663482",
+    "oracle": "0x6d217218836341603a73aCe669cBFBD778De1b9F",
+    "rail": "0xBb038155597b01D38eb61Af8A2d6117f79A14cB5",
+    "acceptance": "0x9fF2B637d4f9bD750256C0D5D550FBfB5C19B9Aa"
   },
   "actors": {
-    "issuer": null,
-    "lender": null,
-    "borrower": null
+    "issuer": {
+      "accountId": "0.0.10730648",
+      "evmAddress": "0xc274ccad401bf8fa397801a423a83c5357722358"
+    },
+    "lender": {
+      "accountId": "0.0.10730653",
+      "evmAddress": "0x6a7b6558c7df250845a4eb49dedf64a28b55cd58"
+    },
+    "borrower": {
+      "accountId": "0.0.10730654",
+      "evmAddress": "0xf83e1f1689074729aa2a6e7a5cbed3a7622fd9a3"
+    }
   },
-  "transactions": [],
+  "transactions": [
+    {
+      "kind": "ats-bond-deployment-1",
+      "type": "transaction",
+      "hash": "0x3cfd8f0dfc007e987ac871ebf4030648a1835a7110efe3821665abc5d2d78e57",
+      "consensusTimestamp": "1790432834.344455156",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x3cfd8f0dfc007e987ac871ebf4030648a1835a7110efe3821665abc5d2d78e57"
+    },
+    {
+      "kind": "issuer-configuration-1",
+      "type": "transaction",
+      "hash": "0x994a7e80e8c1f51c4faefa14b66b80af73753c97a63a6d4ee699142a86e1b3ad",
+      "consensusTimestamp": "1790432841.407634609",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x994a7e80e8c1f51c4faefa14b66b80af73753c97a63a6d4ee699142a86e1b3ad"
+    },
+    {
+      "kind": "kyc-grant-1",
+      "type": "transaction",
+      "hash": "0x9b0e05eed3bfa5a273f1849372fe0bc66ed3980b52d647d67cdd4307f987390e",
+      "consensusTimestamp": "1790432845.746662104",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x9b0e05eed3bfa5a273f1849372fe0bc66ed3980b52d647d67cdd4307f987390e"
+    },
+    {
+      "kind": "kyc-grant-2",
+      "type": "transaction",
+      "hash": "0x53d1d163be13f334ef4af74c58da780e06a10f5a42265b9044035e35a94d0fcf",
+      "consensusTimestamp": "1790432851.918935324",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x53d1d163be13f334ef4af74c58da780e06a10f5a42265b9044035e35a94d0fcf"
+    },
+    {
+      "kind": "collateral-issuance-1",
+      "type": "transaction",
+      "hash": "0x6aa9e7a01238f42e7e605618b00b2071b6f0d5f6477505ec77492d34d42a2ef7",
+      "consensusTimestamp": "1790432856.707777680",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x6aa9e7a01238f42e7e605618b00b2071b6f0d5f6477505ec77492d34d42a2ef7"
+    },
+    {
+      "kind": "oracle-deployment-1",
+      "type": "transaction",
+      "hash": "0xc74e75ae52794e1800def13d5d431cd4484f1469d8501bef4c0e9b10485699fe",
+      "consensusTimestamp": "1790432862.904182306",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0xc74e75ae52794e1800def13d5d431cd4484f1469d8501bef4c0e9b10485699fe"
+    },
+    {
+      "kind": "rail-deployment-1",
+      "type": "transaction",
+      "hash": "0x817f3edb2850674873d77f263ce7967bb9daeaac5660ed1c03d2923bea7c5c73",
+      "consensusTimestamp": "1790432868.571154937",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x817f3edb2850674873d77f263ce7967bb9daeaac5660ed1c03d2923bea7c5c73"
+    },
+    {
+      "kind": "automation-funding-1",
+      "type": "transaction",
+      "hash": "0x2b1a4ee6d0b6932e659a00a3daa796ba049bc7b72d04bdf836912bc4ec7429c1",
+      "consensusTimestamp": "1790432875.326645104",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x2b1a4ee6d0b6932e659a00a3daa796ba049bc7b72d04bdf836912bc4ec7429c1"
+    },
+    {
+      "kind": "acceptance-deployment-1",
+      "type": "transaction",
+      "hash": "0x50a3e51753e67b8c8bed91cf866285d185eeb639088aec34a4ed8230bb067d03",
+      "consensusTimestamp": "1790432882.458599415",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x50a3e51753e67b8c8bed91cf866285d185eeb639088aec34a4ed8230bb067d03"
+    },
+    {
+      "kind": "ats-allowance",
+      "type": "transaction",
+      "hash": "0xb30c6b1bb5f6c10b4716a5b23d60fc9d87a0f39939692f9cfbdac688a6cab2e8",
+      "consensusTimestamp": "1790432891.783942104",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0xb30c6b1bb5f6c10b4716a5b23d60fc9d87a0f39939692f9cfbdac688a6cab2e8"
+    },
+    {
+      "kind": "fund-offer-1",
+      "type": "transaction",
+      "hash": "0x36288f0abe01ee293d4cc235734e5663a0416ddb6234551bea99367b5f27a52e",
+      "consensusTimestamp": "1790432898.084257104",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x36288f0abe01ee293d4cc235734e5663a0416ddb6234551bea99367b5f27a52e"
+    },
+    {
+      "kind": "accept-offer-1",
+      "type": "transaction",
+      "hash": "0x060a2c4c0a42f2673d99f155e5efb572144914b5b32d58ca00fd11b4d5d5947f",
+      "consensusTimestamp": "1790432905.927433590",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x060a2c4c0a42f2673d99f155e5efb572144914b5b32d58ca00fd11b4d5d5947f"
+    },
+    {
+      "kind": "fund-offer-2",
+      "type": "transaction",
+      "hash": "0x417c5cf6b1beb32dc67649a396e746b131765bcaf247e1ee2c6eb579075078b2",
+      "consensusTimestamp": "1790432914.924187289",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x417c5cf6b1beb32dc67649a396e746b131765bcaf247e1ee2c6eb579075078b2"
+    },
+    {
+      "kind": "accept-offer-2",
+      "type": "transaction",
+      "hash": "0x22cd5e3e6b5cc8734879d316b18b0a8bbd9838ba98dc586dec4c08334925379f",
+      "consensusTimestamp": "1790432921.227235104",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x22cd5e3e6b5cc8734879d316b18b0a8bbd9838ba98dc586dec4c08334925379f"
+    },
+    {
+      "kind": "borrower-withdrawal",
+      "type": "transaction",
+      "hash": "0x6dedf5f3c5cd1e63ffea23ee71eac86797678667f9b3c9ce9b92e58c7d7c31f6",
+      "consensusTimestamp": "1790432927.698740903",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x6dedf5f3c5cd1e63ffea23ee71eac86797678667f9b3c9ce9b92e58c7d7c31f6"
+    },
+    {
+      "kind": "repay-position",
+      "type": "transaction",
+      "hash": "0x5b9a0ca2be15cc59fb496c1d79dd3c2dc6e8a282fdcbb710b4ddbe91e13f039c",
+      "consensusTimestamp": "1790432933.567776183",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x5b9a0ca2be15cc59fb496c1d79dd3c2dc6e8a282fdcbb710b4ddbe91e13f039c"
+    },
+    {
+      "kind": "lender-withdrawal",
+      "type": "transaction",
+      "hash": "0x3ad50b143a2a09c8e5257aa9fd4baed7bf4bec6d62cd39b6a3a098da5a3635e6",
+      "consensusTimestamp": "1790432938.686843840",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x3ad50b143a2a09c8e5257aa9fd4baed7bf4bec6d62cd39b6a3a098da5a3635e6"
+    }
+  ],
   "lifecycle": {
-    "atsBondDeployment": null,
-    "ssiAndKycConfiguration": null,
-    "collateralIssuance": null,
+    "atsBondDeployment": {
+      "kind": "ats-bond-deployment-1",
+      "type": "transaction",
+      "hash": "0x3cfd8f0dfc007e987ac871ebf4030648a1835a7110efe3821665abc5d2d78e57",
+      "consensusTimestamp": "1790432834.344455156",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x3cfd8f0dfc007e987ac871ebf4030648a1835a7110efe3821665abc5d2d78e57"
+    },
+    "ssiAndKycConfiguration": {
+      "kind": "kyc-grant-2",
+      "type": "transaction",
+      "hash": "0x53d1d163be13f334ef4af74c58da780e06a10f5a42265b9044035e35a94d0fcf",
+      "consensusTimestamp": "1790432851.918935324",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x53d1d163be13f334ef4af74c58da780e06a10f5a42265b9044035e35a94d0fcf"
+    },
+    "collateralIssuance": {
+      "kind": "collateral-issuance-1",
+      "type": "transaction",
+      "hash": "0x6aa9e7a01238f42e7e605618b00b2071b6f0d5f6477505ec77492d34d42a2ef7",
+      "consensusTimestamp": "1790432856.707777680",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x6aa9e7a01238f42e7e605618b00b2071b6f0d5f6477505ec77492d34d42a2ef7"
+    },
     "pythPriceUpdate": null,
-    "fundedOffer": null,
-    "holdCreation": null,
-    "hssScheduleCreation": null,
-    "repaidFacility": null,
-    "maturedDefault": null,
-    "liveConfigurationRead": null
+    "fundedOffer": {
+      "kind": "fund-offer-1",
+      "type": "transaction",
+      "hash": "0x36288f0abe01ee293d4cc235734e5663a0416ddb6234551bea99367b5f27a52e",
+      "consensusTimestamp": "1790432898.084257104",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x36288f0abe01ee293d4cc235734e5663a0416ddb6234551bea99367b5f27a52e"
+    },
+    "holdCreation": {
+      "kind": "accept-offer-1",
+      "type": "transaction",
+      "hash": "0x060a2c4c0a42f2673d99f155e5efb572144914b5b32d58ca00fd11b4d5d5947f",
+      "consensusTimestamp": "1790432905.927433590",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x060a2c4c0a42f2673d99f155e5efb572144914b5b32d58ca00fd11b4d5d5947f"
+    },
+    "hssScheduleCreation": {
+      "type": "schedule",
+      "address": "0x0000000000000000000000000000000000a3BCEC",
+      "scheduleId": "0.0.10730732",
+      "executedTimestamp": "1790433041.060326208",
+      "hashScan": "https://hashscan.io/testnet/schedule/0.0.10730732"
+    },
+    "repaidFacility": {
+      "kind": "repay-position",
+      "type": "transaction",
+      "hash": "0x5b9a0ca2be15cc59fb496c1d79dd3c2dc6e8a282fdcbb710b4ddbe91e13f039c",
+      "consensusTimestamp": "1790432933.567776183",
+      "result": "SUCCESS",
+      "hashScan": "https://hashscan.io/testnet/transaction/0x5b9a0ca2be15cc59fb496c1d79dd3c2dc6e8a282fdcbb710b4ddbe91e13f039c"
+    },
+    "maturedDefault": {
+      "type": "schedule",
+      "address": "0x0000000000000000000000000000000000a3BCEC",
+      "scheduleId": "0.0.10730732",
+      "executedTimestamp": "1790433041.060326208",
+      "hashScan": "https://hashscan.io/testnet/schedule/0.0.10730732"
+    },
+    "liveConfigurationRead": {
+      "type": "state",
+      "blockNumber": "41012411",
+      "rpcOrigin": "https://testnet.hashio.io",
+      "assertions": {
+        "ats.internalKyc": true,
+        "ats.issuer": true,
+        "ats.lenderKyc": 1,
+        "ats.borrowerKyc": 1,
+        "ats.assetMaturity": "1853504505",
+        "ats.clearingActive": false,
+        "ats.tokenDecimals": 0,
+        "ats.nominalValue": "10000",
+        "ats.nominalValueDecimals": 2,
+        "ats.nominalValueCurrency": "0x555344",
+        "ats.borrowerFree": "990",
+        "ats.borrowerHeld": "0",
+        "ats.lenderFree": "10",
+        "ats.lenderHeld": "0",
+        "rail.cashLiabilitiesTinybar": "0",
+        "rail.reservedAutomationTinybar": "0",
+        "rail.requiredBackingTinybar": "0",
+        "rail.contractBalanceTinybar": "936603529",
+        "rail.policy.maximumAdvanceBps": 7000,
+        "rail.policy.maximumAnnualRateBps": 10000,
+        "rail.policy.maximumQuoteMovementBps": 100,
+        "rail.policy.minimumTermSeconds": 120,
+        "rail.policy.maximumTermSeconds": 31536000,
+        "rail.policy.maximumOfferLifetimeSeconds": 86400,
+        "oracle.kind": "hedera-exchange-rate",
+        "oracle.priceUsdE8": "7802800",
+        "oracle.confidenceUsdE8": "0",
+        "oracle.observedAt": 1790433046,
+        "positions.repaidState": "REPAID",
+        "positions.defaultedState": "DEFAULTED"
+      }
+    }
+  },
+  "oracle": {
+    "kind": "hedera-exchange-rate",
+    "systemContract": "0x0000000000000000000000000000000000000168",
+    "systemFile": "0.0.112",
+    "purpose": "HBAR cash-leg settlement conversion only",
+    "priceUsdE8": "7802800",
+    "confidenceUsdE8": "0",
+    "observedAt": 1790433046,
+    "caveat": "HIP-475 exposes the active network settlement conversion rate, not a live market price oracle."
   },
   "pyth": null,
-  "ats": null,
-  "positions": [],
-  "schedules": [],
-  "accounting": null,
-  "verification": {
-    "complete": false,
-    "readsAtBlock": null,
-    "mirrorOrigin": "https://testnet.mirrornode.hedera.com",
-    "contractLinks": {}
+  "ats": {
+    "internalKyc": true,
+    "issuer": true,
+    "kyc": {
+      "lender": 1,
+      "borrower": 1
+    },
+    "roles": {
+      "issuer": true,
+      "kyc": true,
+      "ssiManager": true
+    },
+    "assetMaturity": "1853504505",
+    "clearingActive": false,
+    "tokenDecimals": 0,
+    "nominalValue": "10000",
+    "nominalValueDecimals": 2,
+    "nominalValueCurrency": "0x555344",
+    "balances": {
+      "borrower": {
+        "free": "990",
+        "held": "0"
+      },
+      "lender": {
+        "free": "10",
+        "held": "0"
+      }
+    }
   },
-  "notice": "This file is intentionally not deployment evidence until every lifecycle field is populated by the verifier."
+  "positions": [
+    {
+      "id": "0x8afa57ad093ed44dd07230271141e6026f9d2ec5476e6719d887ebf2a77cc335",
+      "lender": "0x6A7b6558C7df250845a4eb49DEdF64a28b55CD58",
+      "borrower": "0xf83E1F1689074729aa2a6e7A5CBed3A7622fd9a3",
+      "collateralAmount": "10",
+      "holdId": "1",
+      "principalTinybar": "640795612",
+      "repaymentTinybar": "640795734",
+      "openedAt": 1790432905,
+      "maturity": 1790433025,
+      "scheduleAddress": "0x0000000000000000000000000000000000a3BceA",
+      "state": "REPAID",
+      "automation": "COMPLETED",
+      "terminalPath": "repayment"
+    },
+    {
+      "id": "0x39f335d9526674de732531ac88fa440a357853c61de115159471920e7b2a7b6f",
+      "lender": "0x6A7b6558C7df250845a4eb49DEdF64a28b55CD58",
+      "borrower": "0xf83E1F1689074729aa2a6e7A5CBed3A7622fd9a3",
+      "collateralAmount": "10",
+      "holdId": "2",
+      "principalTinybar": "640795612",
+      "repaymentTinybar": "640795734",
+      "openedAt": 1790432919,
+      "maturity": 1790433039,
+      "scheduleAddress": "0x0000000000000000000000000000000000a3BCEC",
+      "state": "DEFAULTED",
+      "automation": "COMPLETED",
+      "terminalPath": "hss"
+    }
+  ],
+  "holds": [
+    {
+      "positionId": "0x8afa57ad093ed44dd07230271141e6026f9d2ec5476e6719d887ebf2a77cc335",
+      "holdId": "1",
+      "holder": "0xf83e1f1689074729aa2a6e7a5cbed3a7622fd9a3",
+      "partition": "0x0000000000000000000000000000000000000000000000000000000000000001",
+      "amount": "10",
+      "expirationTimestamp": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+      "escrow": "0xBb038155597b01D38eb61Af8A2d6117f79A14cB5",
+      "destination": "0x0000000000000000000000000000000000000000",
+      "data": "0x8afa57ad093ed44dd07230271141e6026f9d2ec5476e6719d887ebf2a77cc335",
+      "operatorData": "0x",
+      "thirdPartyType": 1,
+      "state": {
+        "type": "state",
+        "blockNumber": "41012342",
+        "rpcOrigin": "https://testnet.hashio.io",
+        "assertions": {
+          "hold.positionId": "0x8afa57ad093ed44dd07230271141e6026f9d2ec5476e6719d887ebf2a77cc335",
+          "hold.holdId": "1",
+          "hold.holder": "0xf83e1f1689074729aa2a6e7a5cbed3a7622fd9a3",
+          "hold.partition": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "hold.amount": "10",
+          "hold.expirationTimestamp": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+          "hold.escrow": "0xBb038155597b01D38eb61Af8A2d6117f79A14cB5",
+          "hold.destination": "0x0000000000000000000000000000000000000000",
+          "hold.data": "0x8afa57ad093ed44dd07230271141e6026f9d2ec5476e6719d887ebf2a77cc335",
+          "hold.operatorData": "0x",
+          "hold.thirdPartyType": 1
+        }
+      },
+      "terminalState": {
+        "type": "state",
+        "blockNumber": "41012411",
+        "rpcOrigin": "https://testnet.hashio.io",
+        "assertions": {
+          "hold.positionId": "0x8afa57ad093ed44dd07230271141e6026f9d2ec5476e6719d887ebf2a77cc335",
+          "hold.holdId": "1",
+          "hold.holder": "0xf83e1f1689074729aa2a6e7a5cbed3a7622fd9a3",
+          "hold.partition": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "hold.remainingAmount": "0",
+          "hold.deleted": true
+        }
+      }
+    },
+    {
+      "positionId": "0x39f335d9526674de732531ac88fa440a357853c61de115159471920e7b2a7b6f",
+      "holdId": "2",
+      "holder": "0xf83e1f1689074729aa2a6e7a5cbed3a7622fd9a3",
+      "partition": "0x0000000000000000000000000000000000000000000000000000000000000001",
+      "amount": "10",
+      "expirationTimestamp": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+      "escrow": "0xBb038155597b01D38eb61Af8A2d6117f79A14cB5",
+      "destination": "0x0000000000000000000000000000000000000000",
+      "data": "0x39f335d9526674de732531ac88fa440a357853c61de115159471920e7b2a7b6f",
+      "operatorData": "0x",
+      "thirdPartyType": 1,
+      "state": {
+        "type": "state",
+        "blockNumber": "41012349",
+        "rpcOrigin": "https://testnet.hashio.io",
+        "assertions": {
+          "hold.positionId": "0x39f335d9526674de732531ac88fa440a357853c61de115159471920e7b2a7b6f",
+          "hold.holdId": "2",
+          "hold.holder": "0xf83e1f1689074729aa2a6e7a5cbed3a7622fd9a3",
+          "hold.partition": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "hold.amount": "10",
+          "hold.expirationTimestamp": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+          "hold.escrow": "0xBb038155597b01D38eb61Af8A2d6117f79A14cB5",
+          "hold.destination": "0x0000000000000000000000000000000000000000",
+          "hold.data": "0x39f335d9526674de732531ac88fa440a357853c61de115159471920e7b2a7b6f",
+          "hold.operatorData": "0x",
+          "hold.thirdPartyType": 1
+        }
+      },
+      "terminalState": {
+        "type": "state",
+        "blockNumber": "41012411",
+        "rpcOrigin": "https://testnet.hashio.io",
+        "assertions": {
+          "hold.positionId": "0x39f335d9526674de732531ac88fa440a357853c61de115159471920e7b2a7b6f",
+          "hold.holdId": "2",
+          "hold.holder": "0xf83e1f1689074729aa2a6e7a5cbed3a7622fd9a3",
+          "hold.partition": "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "hold.remainingAmount": "0",
+          "hold.deleted": true
+        }
+      }
+    }
+  ],
+  "schedules": [
+    {
+      "type": "schedule",
+      "address": "0x0000000000000000000000000000000000a3BceA",
+      "scheduleId": "0.0.10730730",
+      "executedTimestamp": "1790433027.001780876",
+      "hashScan": "https://hashscan.io/testnet/schedule/0.0.10730730"
+    },
+    {
+      "type": "schedule",
+      "address": "0x0000000000000000000000000000000000a3BCEC",
+      "scheduleId": "0.0.10730732",
+      "executedTimestamp": "1790433041.060326208",
+      "hashScan": "https://hashscan.io/testnet/schedule/0.0.10730732"
+    }
+  ],
+  "accounting": {
+    "cashLiabilitiesTinybar": "0",
+    "reservedAutomationTinybar": "0",
+    "requiredBackingTinybar": "0",
+    "contractBalanceTinybar": "936603529"
+  },
+  "verification": {
+    "complete": true,
+    "state": {
+      "type": "state",
+      "blockNumber": "41012411",
+      "rpcOrigin": "https://testnet.hashio.io",
+      "assertions": {
+        "ats.internalKyc": true,
+        "ats.issuer": true,
+        "ats.lenderKyc": 1,
+        "ats.borrowerKyc": 1,
+        "ats.assetMaturity": "1853504505",
+        "ats.clearingActive": false,
+        "ats.tokenDecimals": 0,
+        "ats.nominalValue": "10000",
+        "ats.nominalValueDecimals": 2,
+        "ats.nominalValueCurrency": "0x555344",
+        "ats.borrowerFree": "990",
+        "ats.borrowerHeld": "0",
+        "ats.lenderFree": "10",
+        "ats.lenderHeld": "0",
+        "rail.cashLiabilitiesTinybar": "0",
+        "rail.reservedAutomationTinybar": "0",
+        "rail.requiredBackingTinybar": "0",
+        "rail.contractBalanceTinybar": "936603529",
+        "rail.policy.maximumAdvanceBps": 7000,
+        "rail.policy.maximumAnnualRateBps": 10000,
+        "rail.policy.maximumQuoteMovementBps": 100,
+        "rail.policy.minimumTermSeconds": 120,
+        "rail.policy.maximumTermSeconds": 31536000,
+        "rail.policy.maximumOfferLifetimeSeconds": 86400,
+        "oracle.kind": "hedera-exchange-rate",
+        "oracle.priceUsdE8": "7802800",
+        "oracle.confidenceUsdE8": "0",
+        "oracle.observedAt": 1790433046,
+        "positions.repaidState": "REPAID",
+        "positions.defaultedState": "DEFAULTED"
+      }
+    },
+    "mirrorOrigin": "https://testnet.mirrornode.hedera.com",
+    "contractLinks": {
+      "atsToken": "https://hashscan.io/testnet/contract/0xe4E087dC047798bCD76EF6DDDe58134D87663482",
+      "oracle": "https://hashscan.io/testnet/contract/0x6d217218836341603a73aCe669cBFBD778De1b9F",
+      "rail": "https://hashscan.io/testnet/contract/0xBb038155597b01D38eb61Af8A2d6117f79A14cB5",
+      "acceptance": "https://hashscan.io/testnet/contract/0x9fF2B637d4f9bD750256C0D5D550FBfB5C19B9Aa"
+    }
+  },
+  "metrics": {
+    "startedAt": "2026-09-26T14:21:39.434Z",
+    "completedAt": "2026-09-26T14:30:58.014Z",
+    "elapsedMilliseconds": 558580,
+    "mirrorConfirmedTransactions": 17
+  },
+  "notice": "Verified public Hedera testnet evidence. The record contains no signer material or raw transaction payloads."
 }

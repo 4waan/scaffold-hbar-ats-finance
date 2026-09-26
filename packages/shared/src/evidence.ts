@@ -1,11 +1,42 @@
 import type { RailPolicy } from "./recipes";
 
-export type ReferenceTransaction = {
+export type TransactionProof = {
+  type: "transaction";
   kind: string;
   hash: string;
   consensusTimestamp: string;
   result: string;
   hashScan: string;
+};
+
+export type ScheduleProof = {
+  type: "schedule";
+  address: string;
+  scheduleId: string;
+  executedTimestamp: string | null;
+  hashScan: string;
+};
+
+export type StateAssertion = string | number | boolean;
+
+export type StateProof = {
+  type: "state";
+  blockNumber: string;
+  rpcOrigin: string;
+  assertions: Record<string, StateAssertion>;
+};
+
+export type ReferenceLifecycle = {
+  atsBondDeployment: TransactionProof | null;
+  ssiAndKycConfiguration: TransactionProof | null;
+  collateralIssuance: TransactionProof | null;
+  pythPriceUpdate: TransactionProof | null;
+  fundedOffer: TransactionProof | null;
+  holdCreation: TransactionProof | null;
+  hssScheduleCreation: ScheduleProof | null;
+  repaidFacility: TransactionProof | null;
+  maturedDefault: TransactionProof | ScheduleProof | null;
+  liveConfigurationRead: StateProof | null;
 };
 
 export type ReferencePosition = {
@@ -24,12 +55,20 @@ export type ReferencePosition = {
   terminalPath: "repayment" | "hss" | "permissionless-fallback";
 };
 
-export type ScheduleEvidence = {
-  address: string;
-  scheduleId: string;
-  confirmed: boolean;
-  executedTimestamp: string | null;
-  hashScan: string;
+export type HoldEvidence = {
+  positionId: string;
+  holdId: string;
+  holder: string;
+  partition: string;
+  amount: string;
+  expirationTimestamp: string;
+  escrow: string;
+  destination: string;
+  data: string;
+  operatorData: string;
+  thirdPartyType: number;
+  state: StateProof;
+  terminalState: StateProof;
 };
 
 export type AccountingEvidence = {
@@ -39,8 +78,15 @@ export type AccountingEvidence = {
   contractBalanceTinybar: string;
 };
 
+export type EvidenceMetrics = {
+  startedAt: string;
+  completedAt: string;
+  elapsedMilliseconds: number;
+  mirrorConfirmedTransactions: number;
+};
+
 export type ReferenceDeployment = {
-  schemaVersion: number;
+  schemaVersion: 3;
   network: string;
   chainId: number;
   status: string;
@@ -49,28 +95,61 @@ export type ReferenceDeployment = {
   policy: RailPolicy | null;
   addresses: Record<string, string | null>;
   actors: Record<string, { accountId: string; evmAddress: string } | null>;
-  transactions: ReferenceTransaction[];
-  lifecycle: Record<string, string | null>;
+  transactions: TransactionProof[];
+  lifecycle: ReferenceLifecycle;
+  oracle?:
+    | {
+        kind: "pyth";
+        feedId: string;
+        priceUsdE8: string;
+        confidenceUsdE8: string;
+        observedAt: number;
+        purpose: string;
+      }
+    | {
+        kind: "hedera-exchange-rate";
+        systemContract: string;
+        systemFile: string;
+        priceUsdE8: string;
+        confidenceUsdE8: string;
+        observedAt: number;
+        purpose: string;
+        caveat: string;
+      }
+    | null;
   pyth: {
+    feedId: string;
     priceUsdE8: string;
     confidenceUsdE8: string;
     publishTime: number;
     purpose: string;
   } | null;
   ats: {
+    internalKyc: boolean;
+    issuer: boolean;
+    kyc: { lender: number; borrower: number };
+    roles: { issuer: boolean; kyc: boolean; ssiManager: boolean };
+    assetMaturity: string;
+    clearingActive: boolean;
+    tokenDecimals: number;
+    nominalValue: string;
+    nominalValueDecimals: number;
+    nominalValueCurrency: string;
     balances: {
       borrower: { free: string; held: string };
       lender: { free: string; held: string };
     };
   } | null;
   positions: ReferencePosition[];
-  schedules: ScheduleEvidence[];
+  holds: HoldEvidence[];
+  schedules: ScheduleProof[];
   accounting: AccountingEvidence | null;
   verification: {
     complete: boolean;
-    readsAtBlock: string | null;
+    state: StateProof | null;
     mirrorOrigin: string;
     contractLinks: Record<string, string>;
   };
+  metrics: EvidenceMetrics | null;
   notice: string;
 };

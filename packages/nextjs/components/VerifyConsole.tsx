@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { formatUnits, isHex, type Hex } from "viem";
 import { usePublicClient } from "wagmi";
+import { ProofReference } from "@/components/ProofReference";
 import { addresses, isLiveMode } from "@/lib/chain";
 import {
   atsAbi,
@@ -11,6 +12,13 @@ import {
   positionStates,
   railAbi,
 } from "@/lib/contracts";
+import {
+  isRecord,
+  isMirrorTransactionIdentifier,
+  readJson,
+  RemoteReadError,
+  remoteReadMessage,
+} from "@/lib/network";
 import { referenceDeployment } from "@/lib/reference";
 
 type PositionSelection = "repaid" | "defaulted";
@@ -39,8 +47,62 @@ type VerifyConsoleProps = {
   initialPosition: PositionSelection;
 };
 
-function hashScanTransaction(hash: string | null) {
-  return hash ? `https://hashscan.io/testnet/transaction/${hash}` : undefined;
+function stringField(record: Record<string, unknown>, key: string) {
+  const value = record[key];
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function parseMirrorPayload(value: unknown, requestedId: string) {
+  if (!isRecord(value) || !Array.isArray(value.transactions)) {
+    throw new RemoteReadError(
+      "malformed",
+      "Mirror Node returned an unexpected response shape.",
+    );
+  }
+  if (value.transactions.length === 0) {
+    throw new RemoteReadError(
+      "empty",
+      "Mirror Node returned no matching transaction.",
+    );
+  }
+  if (value.transactions.length > 100) {
+    throw new RemoteReadError(
+      "size",
+      "Mirror Node returned too many transactions.",
+    );
+  }
+  const transactions = value.transactions.filter(isRecord).slice(0, 10);
+  const first = transactions[0];
+  if (!first) {
+    throw new RemoteReadError(
+      "malformed",
+      "Mirror Node returned no valid transaction object.",
+    );
+  }
+  const result = stringField(first, "result");
+  const consensusTimestamp = stringField(first, "consensus_timestamp");
+  const transactionId = stringField(first, "transaction_id") ?? requestedId;
+  if (
+    !result ||
+    !consensusTimestamp ||
+    !/^\d+\.\d+$/.test(consensusTimestamp) ||
+    !isMirrorTransactionIdentifier(transactionId)
+  ) {
+    throw new RemoteReadError(
+      "malformed",
+      "Mirror Node omitted required transaction fields.",
+    );
+  }
+  return {
+    fact: { result, consensusTimestamp, transactionId },
+    raw: { transactions },
+  };
+}
+
+function boundedError(error: unknown) {
+  return error instanceof Error
+    ? error.message.slice(0, 2_000)
+    : String(error).slice(0, 2_000);
 }
 
 export function VerifyConsole({ initialPosition }: VerifyConsoleProps) {
@@ -52,23 +114,26 @@ export function VerifyConsole({ initialPosition }: VerifyConsoleProps) {
   const [liveEvidence, setLiveEvidence] = useState<LiveEvidence>();
   const [mirrorFact, setMirrorFact] = useState<MirrorFact>();
   const [rawMirror, setRawMirror] = useState<Record<string, unknown>>();
+  const [isReadingPosition, setIsReadingPosition] = useState(false);
+  const [isReadingMirror, setIsReadingMirror] = useState(false);
+  const [technicalError, setTechnicalError] = useState("");
   const [message, setMessage] = useState(
     "Select a terminal path to inspect its claims and sources.",
   );
 
-  const lifecycle = referenceDeployment.lifecycle as Record<
-    string,
-    string | null
-  >;
+  const lifecycle = referenceDeployment.lifecycle;
   const position = referenceDeployment.positions.find((candidate) =>
     selection === "repaid"
       ? candidate.state === "REPAID"
       : candidate.state === "DEFAULTED",
   );
-  const terminalHash =
+  const terminalProof =
     selection === "repaid"
       ? lifecycle.repaidFacility
       : lifecycle.maturedDefault;
+  const hold = referenceDeployment.holds.find(
+    (candidate) => candidate.positionId === position?.id,
+  );
 
   const claims = [
     {
@@ -77,7 +142,7 @@ export function VerifyConsole({ initialPosition }: VerifyConsoleProps) {
       detail: referenceDeployment.pyth
         ? `$${formatUnits(BigInt(referenceDeployment.pyth.priceUsdE8), 8)} at ${referenceDeployment.pyth.publishTime}`
         : "Awaiting verified publication",
-      link: hashScanTransaction(lifecycle.pythPriceUpdate),
+      proof: lifecycle.pythPriceUpdate,
     },
     {
       claim: "The lender funded an exact HBAR principal.",
@@ -85,24 +150,26 @@ export function VerifyConsole({ initialPosition }: VerifyConsoleProps) {
       detail: position
         ? `${formatUnits(BigInt(position.principalTinybar), 8)} HBAR`
         : "Awaiting verified publication",
-      link: hashScanTransaction(lifecycle.fundedOffer),
+      proof: lifecycle.fundedOffer,
     },
     {
       claim: "ATS collateral entered a distinct native hold.",
       source: "ATS partition hold inspection",
-      detail: position
-        ? `Hold ${position.holdId}, ${position.collateralAmount} units`
-        : "Awaiting verified publication",
-      link: hashScanTransaction(lifecycle.holdCreation),
+      detail:
+        position && hold
+          ? `Hold ${position.holdId}, ${position.collateralAmount} units at block ${hold.state.blockNumber}`
+          : "Awaiting verified publication",
+      proof: lifecycle.holdCreation,
     },
     {
-      claim: "Maturity automation was mined and confirmed.",
+      claim: "An HSS schedule entity was confirmed independently.",
       source: "HSS entity and Mirror Node",
-      detail: position?.scheduleAddress ?? "Awaiting verified publication",
-      link:
-        referenceDeployment.schedules.find(
-          (schedule) => schedule.address === position?.scheduleAddress,
-        )?.hashScan ?? hashScanTransaction(lifecycle.hssScheduleCreation),
+      detail: lifecycle.hssScheduleCreation
+        ? lifecycle.hssScheduleCreation.executedTimestamp
+          ? `Executed at ${lifecycle.hssScheduleCreation.executedTimestamp}`
+          : `Schedule ${lifecycle.hssScheduleCreation.scheduleId}, execution pending`
+        : "Awaiting verified publication",
+      proof: lifecycle.hssScheduleCreation,
     },
     {
       claim:
@@ -120,7 +187,15 @@ export function VerifyConsole({ initialPosition }: VerifyConsoleProps) {
       detail: position
         ? `${position.state} via ${position.terminalPath.replaceAll("-", " ")}`
         : "Awaiting verified publication",
-      link: hashScanTransaction(terminalHash),
+      proof: terminalProof,
+    },
+    {
+      claim: "Final state and solvency were read at an exact block.",
+      source: "Hedera JSON-RPC state proof",
+      detail: referenceDeployment.verification.state
+        ? `${Object.keys(referenceDeployment.verification.state.assertions).length} assertions`
+        : "Awaiting verified publication",
+      proof: referenceDeployment.verification.state,
     },
   ];
 
@@ -140,6 +215,9 @@ export function VerifyConsole({ initialPosition }: VerifyConsoleProps) {
       setMessage("A live deployment and a 32-byte position ID are required.");
       return;
     }
+    setIsReadingPosition(true);
+    setLiveEvidence(undefined);
+    setTechnicalError("");
     try {
       const id = positionId as Hex;
       const result = await publicClient.readContract({
@@ -180,46 +258,44 @@ export function VerifyConsole({ initialPosition }: VerifyConsoleProps) {
         "Live state loaded. Free and held ATS balances remain separate.",
       );
     } catch (error) {
+      setTechnicalError(boundedError(error));
       setMessage(
-        error instanceof Error
-          ? error.message.split("\n")[0]
-          : "State read failed.",
+        /timed out|timeout/i.test(boundedError(error))
+          ? "The Hedera state read timed out. Try again."
+          : "The Hedera state read failed. Nothing was displayed as verified.",
       );
+    } finally {
+      setIsReadingPosition(false);
     }
   }
 
   async function readMirror() {
-    if (!/^(0x[a-fA-F0-9]{64}|\d+\.\d+\.\d+-\d+-\d+)$/.test(transactionId)) {
+    if (!isMirrorTransactionIdentifier(transactionId)) {
       setMessage("Enter a Hedera transaction ID or 32-byte transaction hash.");
       return;
     }
+    setIsReadingMirror(true);
+    setMirrorFact(undefined);
+    setRawMirror(undefined);
+    setTechnicalError("");
     try {
-      const response = await fetch(
+      const payload = await readJson(
         `https://testnet.mirrornode.hedera.com/api/v1/transactions/${encodeURIComponent(transactionId)}`,
-        { headers: { Accept: "application/json" } },
+        {
+          origin: "https://testnet.mirrornode.hedera.com",
+          pathPrefix: "/api/v1/transactions/",
+          maxBytes: 256_000,
+        },
       );
-      if (!response.ok) {
-        throw new Error(`Mirror Node returned HTTP ${response.status}.`);
-      }
-      const payload = (await response.json()) as Record<string, unknown>;
-      const transactions = Array.isArray(payload.transactions)
-        ? payload.transactions
-        : [];
-      const first = transactions[0] as Record<string, unknown> | undefined;
-      if (!first) {
-        throw new Error("HTTP 200 contained no matching transaction.");
-      }
-      setMirrorFact({
-        result: String(first.result ?? "UNKNOWN"),
-        consensusTimestamp: String(first.consensus_timestamp ?? "Unavailable"),
-        transactionId: String(first.transaction_id ?? transactionId),
-      });
-      setRawMirror({ transactions, links: payload.links ?? null });
+      const parsed = parseMirrorPayload(payload, transactionId);
+      setMirrorFact(parsed.fact);
+      setRawMirror(parsed.raw);
       setMessage("Mirror facts loaded and parsed from a nonempty result set.");
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Mirror Node read failed.",
-      );
+      setTechnicalError(boundedError(error));
+      setMessage(remoteReadMessage(error, "Mirror Node"));
+    } finally {
+      setIsReadingMirror(false);
     }
   }
 
@@ -268,13 +344,7 @@ export function VerifyConsole({ initialPosition }: VerifyConsoleProps) {
                 <p>{item.detail}</p>
                 <small>{item.source}</small>
               </div>
-              {item.link ? (
-                <a href={item.link} rel="noreferrer" target="_blank">
-                  Proof link
-                </a>
-              ) : (
-                <b>Pending</b>
-              )}
+              <ProofReference proof={item.proof} />
             </li>
           ))}
         </ol>
@@ -323,6 +393,12 @@ export function VerifyConsole({ initialPosition }: VerifyConsoleProps) {
                 : "Pending"}
             </dd>
           </div>
+          <div>
+            <dt>State read block</dt>
+            <dd>
+              {referenceDeployment.verification.state?.blockNumber ?? "Pending"}
+            </dd>
+          </div>
         </dl>
       </section>
 
@@ -341,11 +417,11 @@ export function VerifyConsole({ initialPosition }: VerifyConsoleProps) {
             </label>
             <button
               className="primaryButton"
-              disabled={!isLiveMode}
+              disabled={!isLiveMode || isReadingPosition}
               onClick={readPosition}
               type="button"
             >
-              Read contract state
+              {isReadingPosition ? "Reading state" : "Read contract state"}
             </button>
             {liveEvidence && (
               <dl className="parsedFacts">
@@ -370,10 +446,11 @@ export function VerifyConsole({ initialPosition }: VerifyConsoleProps) {
             </label>
             <button
               className="primaryButton"
+              disabled={isReadingMirror}
               onClick={readMirror}
               type="button"
             >
-              Query Mirror Node
+              {isReadingMirror ? "Reading Mirror" : "Query Mirror Node"}
             </button>
             {mirrorFact && (
               <dl className="parsedFacts">
@@ -397,12 +474,20 @@ export function VerifyConsole({ initialPosition }: VerifyConsoleProps) {
 
       <details className="rawEvidence referenceRaw">
         <summary>Raw committed reference record</summary>
-        <pre>{JSON.stringify(referenceDeployment, null, 2)}</pre>
+        <pre>
+          {JSON.stringify(referenceDeployment, null, 2).slice(0, 12_000)}
+        </pre>
       </details>
 
       <div className="statusLine" role="status">
         {message}
       </div>
+      {technicalError && (
+        <details className="technicalDetails errorDetails">
+          <summary>Technical error</summary>
+          <pre>{technicalError}</pre>
+        </details>
+      )}
     </div>
   );
 }

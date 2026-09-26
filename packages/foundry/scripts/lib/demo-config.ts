@@ -35,6 +35,22 @@ export function readDemoConfiguration(
     evmAddress: rawSigner.evmAddress as Address,
     privateKey: rawSigner.privateKey as Hex,
   };
+  const oracleKind =
+    environment.DEMO_ORACLE_KIND?.trim() ?? "hedera-exchange-rate";
+  if (!["hedera-exchange-rate", "pyth"].includes(oracleKind)) {
+    throw new Error("DEMO_ORACLE_KIND must be hedera-exchange-rate or pyth.");
+  }
+  const pythApiKey = environment.PYTH_API_KEY?.trim() ?? null;
+  if (
+    oracleKind === "pyth" &&
+    (!pythApiKey ||
+      pythApiKey.length > 1_024 ||
+      /[\u0000-\u001f\u007f]/u.test(pythApiKey))
+  ) {
+    throw new Error(
+      "PYTH_API_KEY must contain a valid Pyth Hermes API key when the Pyth oracle is selected.",
+    );
+  }
 
   return {
     recipe,
@@ -51,6 +67,8 @@ export function readDemoConfiguration(
       "hermes",
       environment.PYTH_HERMES_URL ?? DEFAULT_HERMES_URL,
     ),
+    pythApiKey,
+    oracleKind: oracleKind as "hedera-exchange-rate" | "pyth",
     factory: requireAddress(
       "ATS Factory",
       environment.ATS_FACTORY_ADDRESS ?? ATS_FACTORY_ADDRESS,

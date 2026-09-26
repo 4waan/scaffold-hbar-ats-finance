@@ -1,15 +1,10 @@
-import {
-  AccountBalanceQuery,
-  AccountId,
-  Client,
-  PrivateKey,
-} from "@hiero-ledger/sdk";
+import { AccountId, Client, PrivateKey } from "@hiero-ledger/sdk";
 import { readFile, writeFile } from "node:fs/promises";
 import {
   createPublicClient,
   createWalletClient,
+  encodeAbiParameters,
   http,
-  parseEventLogs,
 } from "viem";
 import type { Address, Hash, Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -19,17 +14,27 @@ import {
   pythAbi,
   railAbi,
 } from "@collateral-rail/shared/abis";
-import { DEFAULT_PARTITION } from "@collateral-rail/shared/hedera";
+import {
+  DEFAULT_PARTITION,
+  WEIBAR_PER_TINYBAR,
+  tinybarToWeibar,
+} from "@collateral-rail/shared/hedera";
 import {
   EvidenceJournal,
   HBAR_USD_PRICE_ID,
+  MIN_EXECUTION_RESERVE_HBAR,
   TINYBAR_PER_HBAR,
+  assertDependencyBytecode,
   assertFundingBudget,
+  assertHssCapacity,
+  categorizeBootstrapTransactions,
   classifyDefaultPath,
+  confirmMirrorAccountIdentity,
   createTemporaryActor,
   fetchAllowedJson,
   hashScanContract,
   parseHermesUpdate,
+  proofForSemanticKind,
   sweepTemporaryActor,
   validateEvidenceRecord,
   waitForMirrorTransaction,
@@ -39,11 +44,15 @@ import {
   ACTOR_FUNDING_HBAR,
   ANNUAL_RATE_BPS,
   COLLATERAL_PER_POSITION,
+  HEDERA_WRITE_GAS,
   PRINCIPAL_USD_E8,
   TERM_SECONDS,
   ZERO_ADDRESS,
   addressesPath,
+  assertRequiredEvidenceTools,
+  assertWritableArtifactPath,
   automationStateName,
+  blockAfterScheduleExecution,
   broadcastPath,
   chain,
   confirmScheduleWithRetry,
@@ -51,6 +60,7 @@ import {
   outputPath,
   positionOpenedArgs,
   positionStateName,
+  receiptDefaultedPosition,
   requireAddress,
   runFoundry,
   waitUntil,
@@ -58,12 +68,16 @@ import {
 import { readVerifiedFinalState } from "./lib/demo-verification.ts";
 
 async function main() {
+  const startedAtMilliseconds = Date.now();
+  const startedAt = new Date(startedAtMilliseconds).toISOString();
   const {
     recipe,
     signer,
     rpcUrl,
     mirrorUrl,
     hermesUrl,
+    pythApiKey,
+    oracleKind,
     factory,
     resolver,
     pyth,
@@ -76,20 +90,66 @@ async function main() {
       "Harness signer key does not match its public EVM address.",
     );
   }
-  const sdkClient = Client.forTestnet().setOperator(
-    AccountId.fromString(signer.accountId),
-    operatorKey,
-  );
-  const balance = await new AccountBalanceQuery()
-    .setAccountId(AccountId.fromString(signer.accountId))
-    .execute(sdkClient);
-  const signerTinybar = BigInt(balance.hbars.toTinybars().toString());
+  const mirrorSigner = await confirmMirrorAccountIdentity({
+    mirrorOrigin: mirrorUrl,
+    accountId: signer.accountId,
+    evmAddress: signer.evmAddress,
+  });
   assertFundingBudget({
-    signerTinybar,
+    signerTinybar: mirrorSigner.balanceTinybar,
     actorFundingTinybar: BigInt(ACTOR_FUNDING_HBAR * 2) * TINYBAR_PER_HBAR,
+    executionReserveTinybar: MIN_EXECUTION_RESERVE_HBAR * TINYBAR_PER_HBAR,
   });
 
   const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+  async function hederaFeeFields() {
+    const minimumGasPrice = await publicClient.getGasPrice();
+    if (
+      minimumGasPrice < WEIBAR_PER_TINYBAR ||
+      minimumGasPrice > 500n * WEIBAR_PER_TINYBAR ||
+      minimumGasPrice % WEIBAR_PER_TINYBAR !== 0n
+    ) {
+      throw new Error("Hedera RPC returned an unsafe gas price.");
+    }
+    return {
+      maxFeePerGas: minimumGasPrice * 2n,
+      maxPriorityFeePerGas: 0n,
+    } as const;
+  }
+  async function fetchPythUpdate() {
+    if (!pythApiKey) throw new Error("Pyth oracle mode requires PYTH_API_KEY.");
+    const payload = await fetchAllowedJson(
+      `${hermesUrl}/v2/updates/price/latest?ids%5B%5D=${HBAR_USD_PRICE_ID.slice(2)}&encoding=hex`,
+      new URL(hermesUrl).origin,
+      fetch,
+      { Authorization: `Bearer ${pythApiKey}` },
+    );
+    const updateData = parseHermesUpdate(payload) as Hex[];
+    const updateFeeTinybar = await publicClient.readContract({
+      address: pyth,
+      abi: pythAbi,
+      functionName: "getUpdateFee",
+      args: [updateData],
+    });
+    return { updateData, updateFeeTinybar };
+  }
+
+  await assertWritableArtifactPath(outputPath);
+  await assertRequiredEvidenceTools();
+  await assertDependencyBytecode({
+    publicClient,
+    dependencies:
+      oracleKind === "pyth"
+        ? { factory, resolver, pyth }
+        : { factory, resolver },
+  });
+  await assertHssCapacity({
+    publicClient,
+    startSecond: Math.floor(Date.now() / 1_000) + Number(TERM_SECONDS) + 2,
+    gasLimit: 750_000,
+  });
+  await hederaFeeFields();
+  if (oracleKind === "pyth") await fetchPythUpdate();
   const journal = new EvidenceJournal();
   const actors: Array<Awaited<ReturnType<typeof createTemporaryActor>>> = [];
   const sweepResults: Array<Awaited<ReturnType<typeof sweepTemporaryActor>>> =
@@ -107,10 +167,14 @@ async function main() {
     const hash = await write();
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") throw new Error(`${kind} reverted.`);
-    await verifyHash(kind, hash);
-    return { hash, receipt };
+    const proof = await verifyHash(kind, hash);
+    return { hash, receipt, proof };
   }
 
+  const sdkClient = Client.forTestnet().setOperator(
+    AccountId.fromString(signer.accountId),
+    operatorKey,
+  );
   try {
     console.log(
       "Creating temporary lender and borrower accounts on Hedera testnet.",
@@ -147,6 +211,7 @@ async function main() {
       ATS_FACTORY_ADDRESS: factory,
       ATS_RESOLVER_ADDRESS: resolver,
       PYTH_ADDRESS: pyth,
+      USE_PYTH_ORACLE: oracleKind === "pyth" ? "1" : "0",
       HEDERA_OPERATOR_ADDRESS: signer.evmAddress,
       LENDER_ADDRESS: lenderAddress,
       BORROWER_ADDRESS: borrowerAddress,
@@ -168,17 +233,14 @@ async function main() {
     const oracle = requireAddress("oracle", addresses.oracle);
     const rail = requireAddress("rail", addresses.rail);
     const acceptance = requireAddress("acceptance", addresses.acceptance);
-    const broadcastTransactions = broadcast.transactions ?? [];
-    if (broadcastTransactions.length < 9) {
-      throw new Error(
-        "Foundry bootstrap did not emit the expected transactions.",
-      );
-    }
+    const broadcastTransactions = categorizeBootstrapTransactions(
+      broadcast.transactions ?? [],
+    );
     const deploymentProofs = [];
-    for (let index = 0; index < broadcastTransactions.length; index += 1) {
-      const transaction = broadcastTransactions[index];
-      const hash = (transaction.hash ?? transaction.transactionHash) as Hash;
-      deploymentProofs.push(await verifyHash(`bootstrap-${index + 1}`, hash));
+    for (const transaction of broadcastTransactions) {
+      deploymentProofs.push(
+        await verifyHash(transaction.kind, transaction.hash as Hash),
+      );
     }
 
     const lenderWallet = createWalletClient({
@@ -192,40 +254,32 @@ async function main() {
       transport: http(rpcUrl),
     });
 
-    console.log("Submitting a fresh Pyth HBAR/USD update.");
-    const hermesPayload = await fetchAllowedJson(
-      `${hermesUrl}/v2/updates/price/latest?ids%5B%5D=${HBAR_USD_PRICE_ID.slice(2)}&encoding=hex`,
-      new URL(hermesUrl).origin,
-    );
-    const updateData = parseHermesUpdate(hermesPayload) as Hex[];
-    const updateFee = await publicClient.readContract({
-      address: pyth,
-      abi: pythAbi,
-      functionName: "getUpdateFee",
-      args: [updateData],
-    });
-    const pythUpdate = await writeAndVerify("pyth-price-update", () =>
-      lenderWallet.writeContract({
-        address: oracle,
-        abi: oracleAbi,
-        functionName: "updatePrice",
-        args: [updateData],
-        value: updateFee,
-      }),
-    );
-    const [priceUsdE8, confidenceUsdE8, publishTime] =
-      await publicClient.readContract({
-        address: oracle,
-        abi: oracleAbi,
-        functionName: "latestHbarUsd",
-      });
+    if (oracleKind === "pyth") {
+      console.log("Submitting a fresh Pyth HBAR/USD update.");
+      const initialPyth = await fetchPythUpdate();
+      await writeAndVerify("pyth-price-update", async () =>
+        lenderWallet.writeContract({
+          address: oracle,
+          abi: oracleAbi,
+          functionName: "updatePrice",
+          args: [initialPyth.updateData],
+          value: tinybarToWeibar(initialPyth.updateFeeTinybar),
+          gas: HEDERA_WRITE_GAS.oracleUpdate,
+          ...(await hederaFeeFields()),
+        }),
+      );
+    } else {
+      console.log("Using Hedera HIP-475 for HBAR settlement conversion.");
+    }
 
-    await writeAndVerify("ats-allowance", () =>
+    await writeAndVerify("ats-allowance", async () =>
       borrowerWallet.writeContract({
         address: atsToken,
         abi: atsAbi,
         functionName: "approve",
         args: [rail, COLLATERAL_PER_POSITION * 2n],
+        gas: HEDERA_WRITE_GAS.atsApproval,
+        ...(await hederaFeeFields()),
       }),
     );
 
@@ -250,11 +304,37 @@ async function main() {
     const schedules: Array<
       Awaited<ReturnType<typeof confirmScheduleWithRetry>>
     > = [];
+    const holds = [];
     const fundTransactions: Array<Awaited<ReturnType<typeof writeAndVerify>>> =
       [];
     const acceptTransactions: Array<
       Awaited<ReturnType<typeof writeAndVerify>>
     > = [];
+    async function requireExecutedSchedule(scheduleAddress: Address) {
+      if (scheduleAddress === ZERO_ADDRESS) {
+        throw new Error("HSS default has no schedule address.");
+      }
+      const executedSchedule = await confirmScheduleWithRetry({
+        mirrorOrigin: mirrorUrl,
+        scheduleAddress,
+        requireExecuted: true,
+      });
+      const scheduleIndex = schedules.findIndex(
+        ({ address }) =>
+          address.toLowerCase() === scheduleAddress.toLowerCase(),
+      );
+      if (scheduleIndex < 0) {
+        throw new Error(
+          "Executed HSS schedule is not bound to an opened position.",
+        );
+      }
+      if (executedSchedule.executedTimestamp === null) {
+        throw new Error("Mirror did not report the HSS execution timestamp.");
+      }
+      schedules[scheduleIndex] = executedSchedule;
+      return executedSchedule;
+    }
+
     for (let sequence = 0; sequence < 2; sequence += 1) {
       const terms = {
         borrower: borrowerAddress,
@@ -270,25 +350,31 @@ async function main() {
         functionName: "previewOffer",
         args: [terms],
       });
-      const funded = await writeAndVerify(`fund-offer-${sequence + 1}`, () =>
-        lenderWallet.writeContract({
-          address: rail,
-          abi: railAbi,
-          functionName: "fundOffer",
-          args: [terms],
-          value: preview[1],
-        }),
+      const funded = await writeAndVerify(
+        `fund-offer-${sequence + 1}`,
+        async () =>
+          lenderWallet.writeContract({
+            address: rail,
+            abi: railAbi,
+            functionName: "fundOffer",
+            args: [terms],
+            value: tinybarToWeibar(preview[1]),
+            gas: HEDERA_WRITE_GAS.fundOffer,
+            ...(await hederaFeeFields()),
+          }),
       );
       fundTransactions.push(funded);
       const offerId = offerFundedArgs(funded.receipt).offerId;
       const accepted = await writeAndVerify(
         `accept-offer-${sequence + 1}`,
-        () =>
+        async () =>
           borrowerWallet.writeContract({
             address: rail,
             abi: railAbi,
             functionName: "acceptOffer",
             args: [offerId],
+            gas: HEDERA_WRITE_GAS.acceptOffer,
+            ...(await hederaFeeFields()),
           }),
       );
       acceptTransactions.push(accepted);
@@ -298,6 +384,7 @@ async function main() {
         abi: railAbi,
         functionName: "getPosition",
         args: [opened.positionId],
+        blockNumber: accepted.receipt.blockNumber,
       });
       const hold = await publicClient.readContract({
         address: atsToken,
@@ -310,16 +397,56 @@ async function main() {
             holdId: position.holdId,
           },
         ],
+        blockNumber: accepted.receipt.blockNumber,
       });
+      const expectedHoldData = encodeAbiParameters(
+        [{ type: "bytes32" }],
+        [opened.positionId],
+      );
       if (
         hold[0] !== COLLATERAL_PER_POSITION ||
+        hold[1] <= position.maturity ||
         hold[2].toLowerCase() !== rail.toLowerCase() ||
-        hold[3] !== ZERO_ADDRESS
+        hold[3].toLowerCase() !== ZERO_ADDRESS ||
+        hold[4].toLowerCase() !== expectedHoldData.toLowerCase() ||
+        hold[5] !== "0x"
       ) {
         throw new Error(
           "ATS hold inspection did not match the facility terms.",
         );
       }
+      const holdState = {
+        type: "state",
+        blockNumber: accepted.receipt.blockNumber.toString(),
+        rpcOrigin: new URL(rpcUrl).origin,
+        assertions: {
+          "hold.positionId": opened.positionId,
+          "hold.holdId": position.holdId.toString(),
+          "hold.holder": borrowerAddress,
+          "hold.partition": DEFAULT_PARTITION,
+          "hold.amount": hold[0].toString(),
+          "hold.expirationTimestamp": hold[1].toString(),
+          "hold.escrow": hold[2],
+          "hold.destination": hold[3],
+          "hold.data": hold[4],
+          "hold.operatorData": hold[5],
+          "hold.thirdPartyType": Number(hold[6]),
+        },
+      } as const;
+      holds.push({
+        positionId: opened.positionId,
+        holdId: position.holdId.toString(),
+        holder: borrowerAddress,
+        partition: DEFAULT_PARTITION,
+        amount: hold[0].toString(),
+        expirationTimestamp: hold[1].toString(),
+        escrow: hold[2],
+        destination: hold[3],
+        data: hold[4],
+        operatorData: hold[5],
+        thirdPartyType: Number(hold[6]),
+        state: holdState,
+      });
       if (position.scheduleAddress !== ZERO_ADDRESS) {
         schedules.push(
           await confirmScheduleWithRetry({
@@ -338,27 +465,33 @@ async function main() {
       throw new Error("No real HSS schedule was created for either position.");
     }
 
-    await writeAndVerify("borrower-withdrawal", () =>
+    await writeAndVerify("borrower-withdrawal", async () =>
       borrowerWallet.writeContract({
         address: rail,
         abi: railAbi,
         functionName: "withdraw",
+        gas: HEDERA_WRITE_GAS.withdrawal,
+        ...(await hederaFeeFields()),
       }),
     );
-    const repaid = await writeAndVerify("repay-position", () =>
+    const repaid = await writeAndVerify("repay-position", async () =>
       borrowerWallet.writeContract({
         address: rail,
         abi: railAbi,
         functionName: "repay",
         args: [positions[0].id],
-        value: positions[0].opened.repaymentTinybar,
+        value: tinybarToWeibar(positions[0].opened.repaymentTinybar),
+        gas: HEDERA_WRITE_GAS.repayment,
+        ...(await hederaFeeFields()),
       }),
     );
-    await writeAndVerify("lender-withdrawal", () =>
+    await writeAndVerify("lender-withdrawal", async () =>
       lenderWallet.writeContract({
         address: rail,
         abi: railAbi,
         functionName: "withdraw",
+        gas: HEDERA_WRITE_GAS.withdrawal,
+        ...(await hederaFeeFields()),
       }),
     );
 
@@ -370,18 +503,87 @@ async function main() {
       functionName: "getPosition",
       args: [positions[1].id],
     });
-    const terminal = await writeAndVerify(
-      Number(beforeFallback.state) === 3
-        ? "confirm-hss-default"
-        : "permissionless-default",
-      () =>
-        lenderWallet.writeContract({
+    let defaultTerminalProof;
+    let fallbackReceiptEmittedDefault = false;
+    if (Number(beforeFallback.state) === 3) {
+      const executedSchedule = await requireExecutedSchedule(
+        beforeFallback.scheduleAddress,
+      );
+      defaultTerminalProof = executedSchedule;
+      await blockAfterScheduleExecution(
+        publicClient,
+        executedSchedule.executedTimestamp,
+      );
+    } else {
+      if (Number(beforeFallback.state) !== 1) {
+        throw new Error("Fallback settlement requires an open position.");
+      }
+      const fallbackHash = await lenderWallet.writeContract({
+        address: rail,
+        abi: railAbi,
+        functionName: "settle",
+        args: [positions[1].id],
+        gas: HEDERA_WRITE_GAS.settlement,
+        ...(await hederaFeeFields()),
+      });
+      const fallbackReceipt = await publicClient.waitForTransactionReceipt({
+        hash: fallbackHash,
+      });
+      if (fallbackReceipt.status !== "success") {
+        throw new Error("permissionless-default reverted.");
+      }
+      fallbackReceiptEmittedDefault = receiptDefaultedPosition(
+        fallbackReceipt,
+        rail,
+        positions[1].id,
+      );
+      const fallbackProof = await verifyHash(
+        fallbackReceiptEmittedDefault
+          ? "permissionless-default"
+          : "settle-race-noop",
+        fallbackHash,
+      );
+      if (fallbackReceiptEmittedDefault) {
+        defaultTerminalProof = fallbackProof;
+      } else {
+        const afterRace = await publicClient.readContract({
           address: rail,
           abi: railAbi,
-          functionName: "settle",
+          functionName: "getPosition",
           args: [positions[1].id],
+          blockNumber: fallbackReceipt.blockNumber,
+        });
+        if (Number(afterRace.state) !== 3) {
+          throw new Error(
+            "Settlement receipt did not default the position and HSS did not win the race.",
+          );
+        }
+        defaultTerminalProof = await requireExecutedSchedule(
+          afterRace.scheduleAddress,
+        );
+      }
+    }
+
+    let pythRefresh: Awaited<ReturnType<typeof writeAndVerify>> | null = null;
+    let verificationBlock: bigint;
+    if (oracleKind === "pyth") {
+      console.log("Refreshing Pyth before the final verified state read.");
+      const finalPyth = await fetchPythUpdate();
+      pythRefresh = await writeAndVerify("pyth-price-refresh", async () =>
+        lenderWallet.writeContract({
+          address: oracle,
+          abi: oracleAbi,
+          functionName: "updatePrice",
+          args: [finalPyth.updateData],
+          value: tinybarToWeibar(finalPyth.updateFeeTinybar),
+          gas: HEDERA_WRITE_GAS.oracleUpdate,
+          ...(await hederaFeeFields()),
         }),
-    );
+      );
+      verificationBlock = pythRefresh.receipt.blockNumber;
+    } else {
+      verificationBlock = await publicClient.getBlockNumber();
+    }
     const finalPositions = await Promise.all(
       positions.map(({ id }) =>
         publicClient.readContract({
@@ -389,10 +591,66 @@ async function main() {
           abi: railAbi,
           functionName: "getPosition",
           args: [id],
+          blockNumber: verificationBlock,
         }),
       ),
     );
-    const defaultPath = classifyDefaultPath(beforeFallback, finalPositions[1]);
+    for (let index = 0; index < positions.length; index += 1) {
+      const terminalHold = await publicClient.readContract({
+        address: atsToken,
+        abi: atsAbi,
+        functionName: "getHoldForByPartition",
+        args: [
+          {
+            partition: DEFAULT_PARTITION,
+            tokenHolder: borrowerAddress,
+            holdId: finalPositions[index].holdId,
+          },
+        ],
+        blockNumber: verificationBlock,
+      });
+      if (
+        terminalHold[0] !== 0n ||
+        terminalHold[1] !== 0n ||
+        terminalHold[2] !== ZERO_ADDRESS ||
+        terminalHold[3] !== ZERO_ADDRESS ||
+        terminalHold[4] !== "0x" ||
+        terminalHold[5] !== "0x" ||
+        Number(terminalHold[6]) !== 0
+      ) {
+        throw new Error("A terminal position retained a live ATS hold.");
+      }
+      holds[index] = {
+        ...holds[index],
+        terminalState: {
+          type: "state",
+          blockNumber: verificationBlock.toString(),
+          rpcOrigin: new URL(rpcUrl).origin,
+          assertions: {
+            "hold.positionId": positions[index].id,
+            "hold.holdId": finalPositions[index].holdId.toString(),
+            "hold.holder": borrowerAddress,
+            "hold.partition": DEFAULT_PARTITION,
+            "hold.remainingAmount": "0",
+            "hold.deleted": true,
+          },
+        },
+      };
+    }
+    const defaultPath = classifyDefaultPath(
+      beforeFallback,
+      finalPositions[1],
+      fallbackReceiptEmittedDefault,
+    );
+
+    // A repaid position can still have a scheduled no-op at maturity. Refresh
+    // every schedule after both maturities so the published record never
+    // preserves an acceptance-time null execution timestamp.
+    for (const position of finalPositions) {
+      if (position.scheduleAddress !== ZERO_ADDRESS) {
+        await requireExecutedSchedule(position.scheduleAddress);
+      }
+    }
 
     const {
       internalKyc,
@@ -400,6 +658,11 @@ async function main() {
       lenderKyc,
       borrowerKyc,
       assetMaturity,
+      clearingActive,
+      tokenDecimals,
+      nominalValue,
+      nominalValueDecimals,
+      nominalValueCurrency,
       issuerRole,
       kycRole,
       ssiRole,
@@ -412,43 +675,84 @@ async function main() {
       requiredBacking,
       railBalance,
       policy,
+      oraclePriceUsdE8,
+      oracleConfidenceUsdE8,
+      oraclePublishTime,
     } = await readVerifiedFinalState({
       publicClient,
       atsToken,
+      oracle,
       rail,
       issuer: signer.evmAddress,
       lender: lenderAddress,
       borrower: borrowerAddress,
       expectedPolicy: recipe.policy,
+      blockNumber: verificationBlock,
     });
 
-    const scheduleTransaction =
-      acceptTransactions.find((entry) => {
-        try {
-          return (
-            parseEventLogs({
-              abi: railAbi,
-              logs: entry.receipt.logs,
-              eventName: "AutomationReserved",
-              strict: false,
-            }).length > 0
-          );
-        } catch {
-          return false;
-        }
-      }) ?? acceptTransactions[0];
+    const defaultSchedule = schedules.find(
+      ({ address }) =>
+        address.toLowerCase() ===
+        finalPositions[1].scheduleAddress.toLowerCase(),
+    );
+    const lifecycleSchedule = defaultSchedule ?? schedules[0];
+    const stateProof = {
+      type: "state",
+      blockNumber: verificationBlock.toString(),
+      rpcOrigin: new URL(rpcUrl).origin,
+      assertions: {
+        "ats.internalKyc": internalKyc,
+        "ats.issuer": issuer,
+        "ats.lenderKyc": Number(lenderKyc),
+        "ats.borrowerKyc": Number(borrowerKyc),
+        "ats.assetMaturity": assetMaturity.toString(),
+        "ats.clearingActive": clearingActive,
+        "ats.tokenDecimals": Number(tokenDecimals),
+        "ats.nominalValue": nominalValue.toString(),
+        "ats.nominalValueDecimals": Number(nominalValueDecimals),
+        "ats.nominalValueCurrency": nominalValueCurrency,
+        "ats.borrowerFree": borrowerFree.toString(),
+        "ats.borrowerHeld": borrowerHeld.toString(),
+        "ats.lenderFree": lenderFree.toString(),
+        "ats.lenderHeld": lenderHeld.toString(),
+        "rail.cashLiabilitiesTinybar": cashLiabilities.toString(),
+        "rail.reservedAutomationTinybar": reservedAutomation.toString(),
+        "rail.requiredBackingTinybar": requiredBacking.toString(),
+        "rail.contractBalanceTinybar": railBalance.toString(),
+        "rail.policy.maximumAdvanceBps": policy.maximumAdvanceBps,
+        "rail.policy.maximumAnnualRateBps": policy.maximumAnnualRateBps,
+        "rail.policy.maximumQuoteMovementBps": policy.maximumQuoteMovementBps,
+        "rail.policy.minimumTermSeconds": policy.minimumTermSeconds,
+        "rail.policy.maximumTermSeconds": policy.maximumTermSeconds,
+        "rail.policy.maximumOfferLifetimeSeconds":
+          policy.maximumOfferLifetimeSeconds,
+        "oracle.kind": oracleKind,
+        "oracle.priceUsdE8": oraclePriceUsdE8.toString(),
+        "oracle.confidenceUsdE8": oracleConfidenceUsdE8.toString(),
+        "oracle.observedAt": Number(oraclePublishTime),
+        "positions.repaidState": positionStateName(finalPositions[0].state),
+        "positions.defaultedState": positionStateName(finalPositions[1].state),
+      },
+    } as const;
+    const completedAtMilliseconds = Date.now();
+    const completedAt = new Date(completedAtMilliseconds).toISOString();
+    const verifiedTransactions = journal.values();
     const record = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       network: "hedera-testnet",
       chainId: 296,
       status: "verified",
-      generatedAt: new Date().toISOString(),
+      generatedAt: completedAt,
       recipeId: recipe.id,
       policy,
       addresses: {
         factory,
         resolver,
-        pyth,
+        pyth: oracleKind === "pyth" ? pyth : null,
+        exchangeRateSystem:
+          oracleKind === "hedera-exchange-rate"
+            ? "0x0000000000000000000000000000000000000168"
+            : null,
         atsToken,
         oracle,
         rail,
@@ -462,32 +766,71 @@ async function main() {
           evmAddress: borrowerAddress,
         },
       },
-      transactions: journal.values(),
+      transactions: verifiedTransactions,
       lifecycle: {
-        atsBondDeployment: deploymentProofs[0].hash,
-        ssiAndKycConfiguration: deploymentProofs[3].hash,
-        collateralIssuance: deploymentProofs[4].hash,
-        pythPriceUpdate: pythUpdate.hash,
-        fundedOffer: fundTransactions[0].hash,
-        holdCreation: acceptTransactions[0].hash,
-        hssScheduleCreation: scheduleTransaction.hash,
-        repaidFacility: repaid.hash,
-        maturedDefault: terminal.hash,
-        liveConfigurationRead: terminal.hash,
+        atsBondDeployment: proofForSemanticKind(
+          deploymentProofs,
+          "ats-bond-deployment",
+        ),
+        ssiAndKycConfiguration: proofForSemanticKind(
+          deploymentProofs,
+          "kyc-grant",
+          "last",
+        ),
+        collateralIssuance: proofForSemanticKind(
+          deploymentProofs,
+          "collateral-issuance",
+        ),
+        pythPriceUpdate: pythRefresh?.proof ?? null,
+        fundedOffer: fundTransactions[0].proof,
+        holdCreation: acceptTransactions[0].proof,
+        hssScheduleCreation: lifecycleSchedule,
+        repaidFacility: repaid.proof,
+        maturedDefault: defaultTerminalProof,
+        liveConfigurationRead: stateProof,
       },
-      pyth: {
-        feedId: HBAR_USD_PRICE_ID,
-        purpose: "HBAR cash-leg conversion only",
-        priceUsdE8: priceUsdE8.toString(),
-        confidenceUsdE8: confidenceUsdE8.toString(),
-        publishTime: Number(publishTime),
-      },
+      oracle:
+        oracleKind === "pyth"
+          ? {
+              kind: "pyth",
+              feedId: HBAR_USD_PRICE_ID,
+              purpose: "HBAR cash-leg conversion only",
+              priceUsdE8: oraclePriceUsdE8.toString(),
+              confidenceUsdE8: oracleConfidenceUsdE8.toString(),
+              observedAt: Number(oraclePublishTime),
+            }
+          : {
+              kind: "hedera-exchange-rate",
+              systemContract: "0x0000000000000000000000000000000000000168",
+              systemFile: "0.0.112",
+              purpose: "HBAR cash-leg settlement conversion only",
+              priceUsdE8: oraclePriceUsdE8.toString(),
+              confidenceUsdE8: oracleConfidenceUsdE8.toString(),
+              observedAt: Number(oraclePublishTime),
+              caveat:
+                "HIP-475 exposes the active network settlement conversion rate, not a live market price oracle.",
+            },
+      pyth:
+        oracleKind === "pyth"
+          ? {
+              feedId: HBAR_USD_PRICE_ID,
+              purpose: "HBAR cash-leg conversion only",
+              priceUsdE8: oraclePriceUsdE8.toString(),
+              confidenceUsdE8: oracleConfidenceUsdE8.toString(),
+              publishTime: Number(oraclePublishTime),
+            }
+          : null,
       ats: {
         internalKyc,
         issuer,
         kyc: { lender: Number(lenderKyc), borrower: Number(borrowerKyc) },
         roles: { issuer: issuerRole, kyc: kycRole, ssiManager: ssiRole },
         assetMaturity: assetMaturity.toString(),
+        clearingActive,
+        tokenDecimals: Number(tokenDecimals),
+        nominalValue: nominalValue.toString(),
+        nominalValueDecimals: Number(nominalValueDecimals),
+        nominalValueCurrency,
         balances: {
           borrower: {
             free: borrowerFree.toString(),
@@ -511,6 +854,7 @@ async function main() {
         automation: automationStateName(position.automation),
         terminalPath: index === 0 ? "repayment" : defaultPath,
       })),
+      holds,
       schedules,
       accounting: {
         cashLiabilitiesTinybar: cashLiabilities.toString(),
@@ -520,13 +864,19 @@ async function main() {
       },
       verification: {
         complete: true,
-        readsAtBlock: terminal.receipt.blockNumber.toString(),
+        state: stateProof,
         mirrorOrigin: mirrorUrl,
         contractLinks: Object.fromEntries(
           Object.entries({ atsToken, oracle, rail, acceptance }).map(
             ([name, address]) => [name, hashScanContract(address)],
           ),
         ),
+      },
+      metrics: {
+        startedAt,
+        completedAt,
+        elapsedMilliseconds: completedAtMilliseconds - startedAtMilliseconds,
+        mirrorConfirmedTransactions: verifiedTransactions.length,
       },
       notice:
         "Verified public Hedera testnet evidence. The record contains no signer material or raw transaction payloads.",

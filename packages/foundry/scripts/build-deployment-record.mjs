@@ -1,5 +1,12 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  DEFAULT_MIRROR_URL,
+  EvidenceJournal,
+  categorizeBootstrapTransactions,
+  proofForSemanticKind,
+  waitForMirrorTransaction,
+} from "./lib/evidence-lib.mjs";
 
 const root = process.cwd();
 const addressesPath = path.join(root, "deployments", "latest-addresses.json");
@@ -11,39 +18,54 @@ const broadcastPath = path.join(
   "run-latest.json",
 );
 const outputPath = path.join(root, "deployments", "testnet.json");
+const startedAtMilliseconds = Date.now();
 
 const addresses = JSON.parse(await readFile(addressesPath, "utf8"));
 const broadcast = JSON.parse(await readFile(broadcastPath, "utf8"));
-const transactions = (broadcast.transactions ?? []).map(
-  (transaction, index) => ({
-    index,
-    kind: transaction.transactionType ?? "CALL",
-    hash: transaction.hash ?? transaction.transactionHash ?? null,
-  }),
+const categorized = categorizeBootstrapTransactions(
+  broadcast.transactions ?? [],
 );
-
-if (
-  transactions.some(
-    (transaction) => !/^0x[a-fA-F0-9]{64}$/.test(transaction.hash ?? ""),
-  )
-) {
-  throw new Error(
-    "Every broadcast transaction must have a mined transaction hash.",
-  );
+const journal = new EvidenceJournal();
+for (const transaction of categorized) {
+  const proof = await waitForMirrorTransaction({
+    mirrorOrigin: DEFAULT_MIRROR_URL,
+    hash: transaction.hash,
+  });
+  journal.add(transaction.kind, proof);
 }
+const transactions = journal.values();
+const completedAtMilliseconds = Date.now();
+const completedAt = new Date(completedAtMilliseconds).toISOString();
 
 const record = {
-  schemaVersion: 1,
+  schemaVersion: 3,
   network: "hedera-testnet",
   chainId: 296,
   status: "bootstrap-mined",
-  generatedAt: new Date().toISOString(),
+  generatedAt: completedAt,
+  recipeId: null,
+  policy: null,
   addresses,
+  actors: {
+    issuer: { accountId: null, evmAddress: addresses.operator },
+    lender: { accountId: null, evmAddress: addresses.lender },
+    borrower: { accountId: null, evmAddress: addresses.borrower },
+  },
   transactions,
   lifecycle: {
-    atsBondDeployment: transactions[0]?.hash ?? null,
-    ssiAndKycConfiguration: transactions[1]?.hash ?? null,
-    collateralIssuance: transactions[4]?.hash ?? null,
+    atsBondDeployment: proofForSemanticKind(
+      transactions,
+      "ats-bond-deployment",
+    ),
+    ssiAndKycConfiguration: proofForSemanticKind(
+      transactions,
+      "kyc-grant",
+      "last",
+    ),
+    collateralIssuance: proofForSemanticKind(
+      transactions,
+      "collateral-issuance",
+    ),
     pythPriceUpdate: null,
     fundedOffer: null,
     holdCreation: null,
@@ -52,11 +74,29 @@ const record = {
     maturedDefault: null,
     liveConfigurationRead: null,
   },
+  pyth: null,
+  ats: null,
+  positions: [],
+  holds: [],
+  schedules: [],
+  accounting: null,
+  verification: {
+    complete: false,
+    state: null,
+    mirrorOrigin: DEFAULT_MIRROR_URL,
+    contractLinks: {},
+  },
+  metrics: {
+    startedAt: new Date(startedAtMilliseconds).toISOString(),
+    completedAt,
+    elapsedMilliseconds: completedAtMilliseconds - startedAtMilliseconds,
+    mirrorConfirmedTransactions: transactions.length,
+  },
   notice:
-    "Bootstrap is mined. Complete and verify both financing terminal paths before publication.",
+    "Bootstrap transactions are mined. Complete and verify both terminal paths before publication.",
 };
 
 await writeFile(outputPath, `${JSON.stringify(record, null, 2)}\n`, {
   mode: 0o600,
 });
-console.log(`Wrote public deployment record to ${outputPath}`);
+console.log(`Wrote private bootstrap record to ${outputPath}.`);
