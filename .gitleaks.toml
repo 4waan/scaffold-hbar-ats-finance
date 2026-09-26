@@ -1,18 +1,2 @@
 [extend]
 useDefault = true
-
-[[allowlists]]
-description = "Reviewed SHA-256 digest for the pinned upstream IAccessControl source"
-condition = "AND"
-regexTarget = "secret"
-regexes = [
-  '''^729de59c12cd972aebfe2263ce79303043692aaf7522211adf87aaa011de9a47$''',
-]
-paths = ['''packages/foundry/abi/ats-v8-required\.json$''']
-
-[[allowlists]]
-description = "Public 20-byte EVM addresses in generated Hedera deployment records"
-regexTarget = "secret"
-regexes = [
-  '''^(?:0x)?[0-9a-fA-F]{40}$''',
-]

@@ -1,0 +1,5 @@
+# Public ATS token address added by the verified testnet evidence commit.
+a4ccae3a826bb5eb3667e37cbb20641da2b8cd62:packages/foundry/deployments/reference-testnet.json:generic-api-key:21
+
+# Reviewed upstream IAccessControl source digest added by the invariant commit.
+0f510753463fcf90869f60e22cf43c3903c8f394:packages/foundry/abi/ats-v8-required.json:generic-api-key:13
