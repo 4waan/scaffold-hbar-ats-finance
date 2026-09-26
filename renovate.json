@@ -1,0 +1,41 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["custom.regex"],
+  "dependencyDashboard": true,
+  "schedule": ["before 7am on monday"],
+  "timezone": "Asia/Kolkata",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.yml$/"],
+      "matchStrings": [
+        "version:\\s+(?<currentValue>v\\d+\\.\\d+\\.\\d+)\\s+# renovate: foundry"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "foundry-rs/foundry"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^packages/foundry/abi/ats-v8-required\\.json$/"
+      ],
+      "matchStrings": [
+        "\"upstreamRelease\":\\s+\"(?<currentValue>v\\.?\\d+\\.\\d+\\.\\d+-ats)\""
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "hashgraph/asset-tokenization-studio",
+      "extractVersionTemplate": "^v\\.?(?<version>\\d+\\.\\d+\\.\\d+)-ats$"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchDepNames": ["hashgraph/asset-tokenization-studio"],
+      "labels": ["ats-compatibility", "manual-review-required"]
+    },
+    {
+      "matchDepNames": ["foundry-rs/foundry"],
+      "labels": ["toolchain", "manual-review-required"]
+    }
+  ]
+}

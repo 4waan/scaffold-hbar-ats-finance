@@ -13,10 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
+        with:
+          version: v1.5.1 # renovate: foundry
       - name: Activate Yarn 3.2.3
         run: corepack enable && corepack prepare yarn@3.2.3 --activate
       - name: Configure scaffold commit identity
@@ -25,24 +27,14 @@ jobs:
           git config --global user.email "ci@collateral-rail.invalid"
       - name: Generate from the public template
         run: npm create scaffold-hbar@latest gate-check -- --template 4waan/scaffold-hbar-ats-finance --yes --skip-hedera-skills
-      - name: Install and verify generated project
+      - name: Install generated project
         working-directory: gate-check
-        run: |
-          yarn install --immutable
-          yarn format:check
-          yarn lint
-          yarn typecheck
-          yarn recipe:check
-          yarn check:dead-code
-          yarn foundry:build
-          yarn foundry:test
-          yarn check:ats-abi
-          yarn next:build
-          yarn check:routes
-          yarn check:secrets
+        run: yarn install --immutable
       - name: Install Chromium
         working-directory: gate-check
         run: yarn workspace @collateral-rail/nextjs exec playwright install --with-deps chromium
-      - name: Browser tests
+      - name: Release validation
         working-directory: gate-check
-        run: yarn test:e2e
+        env:
+          FOUNDRY_PROFILE: ci
+        run: yarn release:validate

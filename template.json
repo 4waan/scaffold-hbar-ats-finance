@@ -1,11 +1,11 @@
 {
   "name": "collateral-rail",
-  "description": "Recipe-driven HBAR financing against ATS securities with native holds, automation, and public proof.",
+  "description": "Finance an ATS security without rebuilding custody, compliance ordering, oracle safety, maturity automation, or public proof.",
   "version": "1.0.0",
   "create-scaffold-hbar": {
     "requirements": {
-      "node": ">=22.0.0",
-      "forge": ">=1.0.0"
+      "node": ">=22 <23",
+      "forge": ">=1.5.1"
     },
     "capabilities": {
       "frontend": ["nextjs-app"],
@@ -47,6 +47,13 @@
               "command": "cp packages/foundry/.env.example packages/foundry/.env"
             },
             {
+              "label": "Import the funded operator into an encrypted Foundry account",
+              "command": "cast wallet import hedera-operator --interactive"
+            },
+            {
+              "text": "Set HEDERA_OPERATOR_ADDRESS, LENDER_ADDRESS, and BORROWER_ADDRESS in packages/foundry/.env before deployment. These are public addresses only. Keep every private key in the encrypted Foundry account."
+            },
+            {
               "label": "Deploy the default ATS bond and rail recipe",
               "command": "{run:bootstrap:testnet} --recipe term-credit"
             },
@@ -56,7 +63,7 @@
             },
             {
               "label": "Run every local gate",
-              "command": "{run:build} && {run:test} && {run:test:e2e}"
+              "command": "yarn release:validate"
             }
           ]
         }

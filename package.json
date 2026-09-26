@@ -22,6 +22,8 @@
     "test": "yarn foundry:test && yarn test:runner",
     "test:runner": "yarn workspace @collateral-rail/foundry test:runner",
     "test:e2e": "yarn workspace @collateral-rail/nextjs test:e2e",
+    "test:e2e:live": "yarn workspace @collateral-rail/nextjs test:e2e:live",
+    "test:e2e:production": "PLAYWRIGHT_SERVER_MODE=production yarn workspace @collateral-rail/nextjs test:e2e",
     "foundry:build": "yarn workspace @collateral-rail/foundry build",
     "foundry:fmt": "yarn workspace @collateral-rail/foundry fmt:check",
     "foundry:test": "yarn workspace @collateral-rail/foundry test",
@@ -36,6 +38,7 @@
     "check:dead-code": "knip",
     "check:secrets": "node scripts/check-secrets.mjs",
     "check:ats-abi": "yarn workspace @collateral-rail/foundry check:ats-abi",
+    "check:compatibility": "node scripts/check-compatibility.mjs",
     "harness:doctor": "hedera-harness doctor .harness/spec.yaml",
     "harness:doctor:recipe": "hedera-harness doctor .harness/spec.yaml --recipe-only",
     "harness:validate": "hedera-harness validate .harness/spec.yaml",
@@ -43,7 +46,9 @@
     "harness:run:judge": "hedera-harness run .harness/judge-proof-spec.yaml",
     "harness:semantic": "hedera-harness validate-semantic .harness/judge-proof-spec.yaml",
     "harness:testnet:doctor": "hedera-harness doctor .harness/testnet-spec.yaml",
-    "harness:testnet": "hedera-harness run .harness/testnet-spec.yaml"
+    "harness:testnet": "hedera-harness run .harness/testnet-spec.yaml",
+    "release:validate": "node scripts/release-gate.mjs",
+    "release:check": "yarn release:validate"
   },
   "devDependencies": {
     "@hiero-ledger/sdk": "2.86.2",
