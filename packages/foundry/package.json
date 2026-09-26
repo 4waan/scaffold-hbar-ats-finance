@@ -26,8 +26,8 @@
   },
   "devDependencies": {
     "@hiero-ledger/sdk": "2.86.2",
-    "@types/node": "22.18.6",
-    "tsx": "4.20.6",
-    "typescript": "5.8.2"
+    "@types/node": "26.6.2",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2"
   }
 }
