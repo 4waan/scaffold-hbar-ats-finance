@@ -38,12 +38,12 @@
     },
     {
       "id": "C5",
-      "statement": "The committed testnet lifecycle can be reconstructed without credentials or simulated entity addresses.",
+      "statement": "A verified committed testnet lifecycle can be reconstructed without credentials or simulated entity addresses.",
       "route": "/verify",
       "severity": "critical",
       "walletRequired": false,
       "verifiableWithoutCredentials": true,
-      "howToVerify": "Open verify with no wallet. Confirm a repaid and defaulted position, distinct hold IDs, terminal path labels, separate Pyth, ATS, liability, reserve, and HSS facts, plus direct HashScan links for every lifecycle receipt."
+      "howToVerify": "Open verify with no wallet. A pending record must be labeled incomplete. A verified record must show a repaid and defaulted position, distinct hold IDs, terminal path labels, separate Pyth, ATS, liability, reserve, and HSS facts, plus direct HashScan links for every lifecycle receipt."
     },
     {
       "id": "C6",
@@ -55,7 +55,7 @@
     },
     {
       "id": "C7",
-      "statement": "A developer can scaffold, boot, replay, and verify the reference flow in under five minutes without credentials.",
+      "statement": "A developer can scaffold, boot, replay, and inspect the reference flow without credentials.",
       "route": "/",
       "severity": "major",
       "walletRequired": false,

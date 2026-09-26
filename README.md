@@ -1,12 +1,17 @@
 # Collateral Rail
 
-Collateral Rail is a Scaffold-HBAR template for building HBAR financing against
-Asset Tokenization Studio securities. It gives developers a secure financing
-kernel and small, declarative recipes for changing the product policy.
+Finance an ATS security without rebuilding custody, compliance ordering, oracle
+safety, maturity automation, or public proof.
+
+Collateral Rail is a developer-first Scaffold-HBAR template for bilateral HBAR
+financing against Asset Tokenization Studio securities. It gives a new project
+one narrow, tested financing kernel and declarative recipes for changing product
+policy without changing the safety model.
 
 Use it to start a term facility, maturity bridge, treasury advance, receivables
 facility, or another bilateral secured-credit pattern. The recipe can change.
-The difficult guarantees stay in one tested implementation:
+The integration work that developers should not have to repeat stays in one
+tested implementation:
 
 - ATS-native collateral custody through partition holds;
 - ATS internal KYC for both counterparties;
@@ -42,7 +47,7 @@ yarn install --immutable
 yarn dev
 ```
 
-## Inspect the pattern in five minutes
+## Inspect the pattern locally
 
 1. Open `/` and choose a financing recipe.
 2. Open `/facility?recipe=term-credit&mode=reference` and move through one step
@@ -54,7 +59,9 @@ yarn dev
    and HSS reserves are never collapsed into one status.
 
 The committed reference record stays visibly pending until a complete testnet
-lifecycle has passed the publication gate. The interface never invents proof.
+lifecycle has passed the publication gate. Once verified, the homepage reports
+its transaction count and the verification page links every claim to a typed
+transaction, HSS schedule, or state proof. The interface never invents proof.
 
 ## Choose a recipe
 
@@ -67,7 +74,7 @@ yarn recipe:check
 
 The template ships three:
 
-- **Term Credit** is the verified default. It demonstrates funding, a native
+- **Term Credit** is the canonical evidence recipe. It demonstrates funding, a native
   hold, repayment, default, and both recovery paths.
 - **Maturity Bridge** uses a tighter advance, shorter term, smaller quote
   movement, and shorter offer window.
@@ -155,9 +162,10 @@ REPAID                              DEFAULTED
 hold released to borrower           hold executed to lender
 ```
 
-Every accepted offer creates one position and one hold. A terminal position
-never reopens. HSS improves timing, but any account can call `settle` after
-maturity. No keeper is a correctness dependency.
+Every accepted offer creates one position and one hold. Before repayment or
+default, the rail revalidates that hold and drains its current adjustment-aware
+amount. A terminal position never reopens. HSS improves timing, but any account
+can call `settle` after maturity. No keeper is a correctness dependency.
 
 The central cash invariant is:
 
@@ -195,7 +203,7 @@ packages/foundry   contracts, reduced ATS interfaces, scripts, and tests
 packages/nextjs    recipe workbench and proof ledger
 packages/shared    recipes, chain constants, canonical ABIs, evidence types
 docs               field guide, ADRs, extension guide, maintainer material
-.harness           optional Harness specifications and deterministic validators
+.harness           release Harness specifications and deterministic validators
 ```
 
 The three application routes are intentionally narrow:
@@ -210,32 +218,46 @@ The three application routes are intentionally narrow:
 ## Test and release gates
 
 ```sh
+yarn install --immutable
+yarn release:validate
+```
+
+Use the individual commands below when diagnosing a failed release step:
+
+```sh
 yarn format:check
 yarn lint
 yarn typecheck
 yarn recipe:check
+yarn check:dead-code
 yarn foundry:build
 yarn foundry:test
 yarn foundry:fuzz
 yarn foundry:invariant
 yarn test:runner
-yarn next:build
 yarn test:e2e
+yarn test:e2e:live
+yarn next:build
+yarn test:e2e:production
 yarn check:routes
-yarn check:secrets
 yarn check:ats-abi
+yarn check:secrets
+yarn harness:validate
 ```
 
 The contract suite covers policy bounds, conversion and rounding, Pyth failure
-modes, KYC, allowance, quote movement, hold inspection, HSS response codes,
-timestamp boundaries, repayment, default, reentrancy, and reserve solvency. The
+modes, KYC, allowance, quote movement, hold inspection, ATS balance
+adjustments, HSS response codes, timestamp boundaries, repayment, default,
+reentrancy, and reserve solvency. The
 runner suite covers endpoint restrictions, funding caps, actor failures, Mirror
 pagination, retry safety, evidence completeness, and sweep-back failure.
 
 CI also scaffolds the public repository into a clean directory and repeats the
 install, test, build, boot, and route checks against the generated project.
+The release validator runs every local gate in the required order and rejects a
+run that changes tracked or nonignored untracked files.
 
-## Verified reference evidence
+## Reference evidence gate
 
 `packages/foundry/deployments/reference-testnet.json` is the public evidence
 ledger. Publication requires the `term-credit` recipe, its complete deployed
@@ -256,21 +278,39 @@ a capped, funded Hedera testnet account. It creates temporary lender and borrowe
 accounts and attempts best-effort sweep-back. See
 [Testnet Evidence Runner](docs/testnet-evidence-runner.md).
 
-Hedera Harness is optional. Maintainers who use it should follow the committed
+Hedera Harness is optional for ordinary application development and required for
+maintainers running the canonical release gate. Follow the committed
 specifications in `.harness/` and the [Maintainer Guide](docs/maintainer-guide.md).
-Claude Code is not required to build, test, deploy, or publish the template.
 
 ## Advanced references
 
 - [ATS call surface](docs/ats-call-surface.md)
 - [Architecture decisions](docs/adr/)
 - [Maintainer guide](docs/maintainer-guide.md)
+- [Submission readiness](docs/submission-readiness.md)
+- [Compatibility matrix](docs/compatibility.md)
+- [Maintenance roadmap](docs/roadmap.md)
 - [Decision record template](docs/templates/decision-record.md)
 - [Measured finding template](docs/templates/measured-finding.md)
+- [2026-09-26 local release validation](docs/findings/2026-09-26-release-validation.md)
 
 Version 1 uses one HBAR cash leg, one ATS asset per rail, and ATS internal KYC.
-HCS, HTS cash, coupons, margin calls, auctions, privacy, pooled lending, and
-secondary markets are documented extension opportunities, not partial features.
+The next maintained extension is a separately versioned HTS settlement rail.
+An external KYC reference adapter and CLPR collateral-mobility experiment follow
+only after compatibility and security review against their pinned upstream
+interfaces. HCS event duplication,
+direct Block Streams consumption, pooled lending, order books, margin calls,
+auctions, and secondary markets remain outside the maintained core.
+
+## Maintenance
+
+Compatibility checks run weekly without funded credentials. A funded Harness
+lifecycle is run manually after material ATS, Hiero, HSS, Pyth, or Mirror Node
+changes. Releases follow semantic versioning, keep old evidence schemas readable
+for one major version, and document any migration before removing an interface.
+
+See [CONTRIBUTING](CONTRIBUTING.md), [Security](SECURITY.md), and the
+[Maintainer Guide](docs/maintainer-guide.md) for support and release policy.
 
 ## License
 

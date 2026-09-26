@@ -14,6 +14,8 @@ interface, the pinned ABI list, and its regression test in the same change.
 - HBAR balance covers cash liabilities and HSS reserves.
 - One accepted offer creates one position and one hold.
 - A hold has at most one terminal action.
+- Every terminal path revalidates the adjustment-aware hold and leaves no
+  position-tagged amount behind.
 - Terminal positions never reopen.
 - Default cannot execute before maturity.
 - Failed HSS scheduling leaves public settlement available.
@@ -22,14 +24,23 @@ interface, the pinned ABI list, and its regression test in the same change.
 
 ## Testnet evidence procedure
 
-1. Use an encrypted Foundry keystore. Never export a raw key into a command.
-2. Run the bootstrap and preserve its Foundry broadcast artifact outside Git.
-3. Build the public record from addresses and transaction hashes only.
+1. Supply the capped funded operator only to the manual Harness testnet run.
+2. Let Harness create and expose its ephemeral signer in process memory. Never
+   place either key in an argument, file, log, or evidence field.
+3. Preserve the Foundry broadcast artifact outside Git.
 4. Confirm every transaction through Mirror Node.
-5. Read ATS roles, KYC, maturity, free balance, and held balance live.
-6. Read the rail token, partition, oracle, nominal value, liabilities, and reserve live.
-7. Confirm the real schedule address from the mined receipt and then through Mirror Node.
-8. Populate a lifecycle field only after the corresponding probe passes.
+5. Read ATS roles, KYC, Clearing mode, decimals, nominal configuration,
+   maturity, free balance, held balance, both opening hold details, and both
+   terminal hold deletions at exact blocks.
+6. Read the immutable policy, Pyth data, liabilities, HSS reserve, and final
+   backing at the recorded verification block.
+7. Confirm the real schedule address through Mirror Node. Require a non-null
+   execution timestamp before attributing a terminal action to HSS.
+8. Bind funding, acceptance, repayment, and fallback claims to decoded receipt
+   events from the expected rail and ATS token.
+9. Populate a typed lifecycle proof only after the corresponding probe passes.
+10. Publish through the atomic candidate validator. Never copy a partial record
+    by hand.
 
 An `eth_call` result is never an entity receipt. HashScan code verification is
 not a substitute for live constructor, role, KYC, or hold reads.
@@ -46,7 +57,49 @@ hashes, addresses, and response shapes before rendering links or evidence.
 
 ## Release checklist
 
-Run all commands in the README. Then scaffold the public repository into a new
-temporary directory and run the same install, test, build, Playwright, route,
-and secret gates there. Finally inspect the generated README outro and reference
-mode with no environment file present.
+Run `yarn release:validate` from a clean checkout. Then scaffold the public
+repository into a new temporary directory and run the same install, test,
+build, Playwright, route, and secret gates there. Finally inspect the generated
+README outro and reference mode with no environment file present.
+
+Never publish a release while the committed evidence is pending, a workflow is
+red, or the validation run changes a tracked or nonignored untracked repository
+file.
+
+## Versioning and compatibility
+
+Use semantic versioning. A recipe addition that stays inside the existing
+policy envelope is a minor change. A bug fix that preserves public interfaces is
+a patch. Any contract ABI, recipe schema, evidence schema, or trust-boundary
+change requires a documented migration and is normally a major change.
+
+Keep an evidence reader compatible with the previous major schema for one major
+release. Contracts are immutable, so never present a newly deployed address as
+an in-place upgrade of an older rail.
+
+Review the compatibility matrix before updating ATS, Hiero contracts, HSS,
+Pyth, viem, wagmi, Foundry, or Solidity. These updates require a fresh funded
+testnet lifecycle after local and generated-project gates pass.
+
+## Maintenance cadence
+
+- Run the credential-free compatibility canary weekly.
+- Triage reproducible installation and integration defects within five business
+  days.
+- Run a funded Harness lifecycle after material integration changes and before
+  every tagged release.
+- Convert Hedera-specific surprises into a measured finding, regression test,
+  and upstream issue when appropriate.
+- Deprecate an interface in documentation before removing it in the next major
+  version.
+
+Long-lived funded keys are not stored in CI. Live validation uses a capped
+operator supplied only to the manual Harness run.
+
+## Extension order
+
+The HBAR rail remains the version 1 reference. After its tagged submission, the
+next contract is an isolated HTS settlement rail. An external KYC adapter follows
+only after compatibility and security review of the confirmed upstream
+interface. CLPR remains an experimental RFC
+until its proof and recovery contracts are stable.

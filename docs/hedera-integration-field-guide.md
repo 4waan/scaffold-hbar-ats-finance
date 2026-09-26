@@ -6,6 +6,8 @@ status tells you how strong the claim is:
 - `source-read`: confirmed in the upstream implementation or official API.
 - `measured`: reproduced against Hedera testnet behavior.
 - `derived`: a conservative design consequence of source-read or measured facts.
+- `pending-measurement`: encoded defensively but not yet reproduced by the
+  submission lifecycle.
 
 The committed reference record starts incomplete. A measurement that depends on
 live infrastructure must be reproduced before the record is marked verified.
@@ -19,13 +21,14 @@ as a Holds instrument. Deploying both expectations produces a token that cannot
 serve this workflow.
 
 **Template consequence:** The bond bootstrap sets `clearingActive: false`. The
-template never calls a Clearing facet.
+acceptance verifier, final evidence read, and publication verifier all require
+Clearing to remain disabled. The template never calls a Clearing facet.
 
 **Guard and test:** `.harness/validators/static.json` asserts the literal
 configuration. `BootstrapTestnet.s.sol` is compiled in every Foundry build.
 
 **Primary source:** ATS hold and clearing facets in the
-[Asset Tokenization Studio repository](https://github.com/hashgraph/asset-tokenization-studio/tree/main/packages/ats/contracts/contracts/facets).
+[Asset Tokenization Studio repository](https://github.com/hashgraph/asset-tokenization-studio/tree/v.8.0.0-ats/packages/ats/contracts/contracts/facets).
 
 ## 2. Hold creation is not facility compliance
 
@@ -43,7 +46,7 @@ before the hold call.
 that no hold is created when local policy fails.
 
 **Primary source:** ATS
-[hold implementation](https://github.com/hashgraph/asset-tokenization-studio/tree/main/packages/ats/contracts/contracts/facets/holdByPartition).
+[hold implementation](https://github.com/hashgraph/asset-tokenization-studio/tree/v.8.0.0-ats/packages/ats/contracts/contracts/facets/holdByPartition).
 
 ## 3. Hold execution does not supply a trustworthy compliance amount
 
@@ -53,18 +56,21 @@ that no hold is created when local policy fails.
 economic amount being executed from a hold.
 
 **Template consequence:** The rail never delegates facility amount policy to an
-ATS compliance callback. It stores the exact collateral amount, re-reads the
-hold, and executes only that amount.
+ATS compliance callback. It stores the opening amount, then re-reads and
+revalidates the position-tagged hold immediately before a terminal action. ATS
+balance adjustments may change the live amount, so the rail drains the current
+amount and requires a post-call read to show no residual hold.
 
-**Guard and test:** `testMatureDefaultExecutesCollateralOnce` asserts exact
-delivery and one terminal action.
+**Guard and test:** Upward and downward adjustment tests cover repayment and
+default. Residual-response tests prove that a nominally successful ATS call
+reverts the complete rail transition when any hold remains.
 
 **Primary source:** ATS hold execution path in the
-[upstream contracts](https://github.com/hashgraph/asset-tokenization-studio/tree/main/packages/ats/contracts/contracts/facets/hold).
+[upstream contracts](https://github.com/hashgraph/asset-tokenization-studio/tree/v.8.0.0-ats/packages/ats/contracts/contracts/facets/hold).
 
 ## 4. Free and held balances are different values
 
-**Status:** measured
+**Status:** source-read
 
 **Failure mode:** `balanceOfByPartition` excludes encumbered units. Presenting it
 as a holder's complete position makes collateral appear to disappear.
@@ -110,12 +116,12 @@ both grants.
 `_validateLiveConfiguration` reads issuer membership and both KYC states.
 
 **Primary sources:** ATS
-[KYC interface](https://github.com/hashgraph/asset-tokenization-studio/blob/main/packages/ats/contracts/contracts/facets/kyc/IKyc.sol) and
-[SSI management interface](https://github.com/hashgraph/asset-tokenization-studio/blob/main/packages/ats/contracts/contracts/facets/ssiManagement/ISsiManagement.sol).
+[KYC interface](https://github.com/hashgraph/asset-tokenization-studio/blob/v.8.0.0-ats/packages/ats/contracts/contracts/facets/kyc/IKyc.sol) and
+[SSI management interface](https://github.com/hashgraph/asset-tokenization-studio/blob/v.8.0.0-ats/packages/ats/contracts/contracts/facets/ssiManagement/ISsiManagement.sol).
 
 ## 7. Published ATS documentation can lag the live deployment
 
-**Status:** measured
+**Status:** source-read
 
 **Failure mode:** A documented address may be stale, undeployed, or paired with
 a different resolver configuration.
@@ -150,7 +156,7 @@ code for all attempts and proves the hold remains recoverable.
 
 ## 9. Consensus time and EVM time can cross a second boundary
 
-**Status:** measured
+**Status:** pending-measurement
 
 **Failure mode:** A schedule targeting the exact maturity second can execute in
 that consensus second while the contract still observes an earlier
@@ -190,8 +196,10 @@ missing receipts. `verify-deployment.mjs` rejects addresses without Mirror entit
 **Failure mode:** Matching runtime bytecode does not prove current roles, KYC,
 constructor inputs, token maturity, partition, or oracle binding.
 
-**Template consequence:** Deployment acceptance includes direct immutable and
-role reads. HashScan links are supporting navigation, not the state oracle.
+**Template consequence:** Deployment acceptance includes direct immutable,
+role, Clearing, token-decimal, nominal-value, nominal-decimal, currency, and
+counterparty KYC reads. HashScan links are supporting navigation, not the state
+oracle.
 
 **Guard and test:** `_validateLiveConfiguration` and `verify-deployment.mjs`
 require role and immutable values before the lifecycle can be complete.
@@ -201,7 +209,7 @@ require role and immutable values before the lifecycle can be complete.
 
 ## 12. Mirror pagination and HTTP 200 need interpretation
 
-**Status:** measured
+**Status:** pending-measurement
 
 **Failure mode:** HTTP 200 can contain an empty transaction list, and list
 endpoints may represent only the first page.
@@ -218,21 +226,24 @@ transaction and exposes response link metadata. Scripted verification follows
 
 ## 13. Hedera EVM native units must be explicit
 
-**Status:** measured
+**Status:** source-read
 
-**Failure mode:** Ethereum habits encourage naming native amounts `wei`, while
-Hedera EVM contract values and account balances are reasoned about in tinybar.
-Implicit unit conversion causes errors by powers of ten.
+**Failure mode:** Ethereum JSON RPC transaction values and `eth_getBalance` use
+18-decimal weibars. Hedera EVM `msg.value`, `address.balance`, and contract cash
+amounts use 8-decimal tinybars. Treating the boundary as one unit causes a
+10,000,000,000-fold error.
 
 **Template consequence:** Public fields and events use the `Tinybar` suffix. The
-constant `TINYBAR_PER_HBAR` is 100,000,000. USD and price values use an `E8`
-suffix.
+constants name both sides. Client writes multiply tinybars by
+`WEIBAR_PER_TINYBAR`, and RPC balance reads require exact division. USD and
+price values use an `E8` suffix.
 
-**Guard and test:** `testFuzzConversionAndInterestRoundUp` independently checks
-the division bound for random USD prices and terms.
+**Guard and test:** `testFuzzConversionAndInterestRoundUp` checks cash
+conversion and interest. Runner tests cover exact weibar round trips,
+fractional-tinybar rejection, and solvency after RPC balance conversion.
 
 **Primary source:** Hedera
-[HBAR denomination reference](https://docs.hedera.com/hedera/core-concepts/hbar).
+[Ethereum transaction unit reference](https://docs.hedera.com/hedera/sdks-and-apis/sdks/smart-contracts/ethereum-transaction).
 
 ## 14. Pyth HBAR/USD is a cash feed, not an RWA valuation feed
 

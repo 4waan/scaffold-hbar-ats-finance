@@ -50,6 +50,12 @@ external call, and a reentrancy lock protects the full path.
 The HSS reserve is not lender principal. `withdrawUnusedAutomation` can reach
 only balance above user liabilities and pending schedule reserves.
 
+Hedera has two native value units at this boundary. JSON RPC transaction
+values and `eth_getBalance` use 18-decimal weibars. Solidity `msg.value`,
+`address.balance`, and every rail cash amount use 8-decimal tinybars. Client
+and runner code converts by exactly 10,000,000,000 only when values cross the
+JSON RPC boundary. Contract accounting remains entirely in tinybars.
+
 ## Collateral accounting
 
 The borrower grants the rail an ATS allowance. Acceptance checks:
@@ -63,7 +69,10 @@ The borrower grants the rail an ATS allowance. Acceptance checks:
 
 The rail then asks ATS to create an escrow hold with no destination and an
 effectively open expiry. It reads the hold back and validates amount, escrow,
-destination, data binding, and expiry before opening the position.
+destination, data binding, authorized third-party type, and expiry before
+opening the position. ATS balance adjustments can change the hold amount later.
+Each terminal path repeats the identity checks, drains the current amount, and
+requires the hold to be absent afterward.
 
 `balanceOfByPartition` is displayed as free balance. Held balance is read from
 `getHeldAmountForByPartition` and shown independently.
@@ -87,6 +96,27 @@ HSS improves liveness.
 - HSS may fail or be saturated without blocking acceptance or recovery.
 - Mirror Node supplies historical evidence, but direct contract reads determine current state.
 - The deployment operator controls ATS issuance and KYC setup, but cannot seize rail credits.
+
+## Evidence model
+
+Public evidence is typed by what the network actually proves:
+
+- a transaction proof contains a successful Mirror-confirmed hash, consensus
+  timestamp, and HashScan link;
+- a schedule proof contains the long-zero address, Hedera schedule ID,
+  execution timestamp when applicable, and HashScan link;
+- a state proof contains the Hedera block number, approved RPC origin, and the
+  exact assertions read at that block.
+
+An HSS default uses the executed schedule plus a later terminal state proof. A
+permissionless default uses its successful settlement transaction plus the same
+final state checks. The runner never submits or cites a later no-op call as proof
+that HSS performed the earlier terminal action.
+
+The public reference file is replaced atomically only after the complete record
+passes relationship validation, live Mirror and RPC verification, receipt-event
+binding, final hold reads, and secret scanning. A failed run leaves the previous
+public state untouched.
 
 ## External calls
 

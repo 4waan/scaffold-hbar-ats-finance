@@ -25,6 +25,11 @@ Pinned compatibility target: Asset Tokenization Studio v8 testnet deployment.
 | `executeHoldByPartition`      | Deliver overdue collateral          | Maturity and lender KYC         |
 | `getMaturityDate`             | Bound facility term                 | Facility may not outlive asset  |
 | `hasRole`                     | Live deployment verification        | Evidence only, not runtime auth |
+| `isClearingActivated`         | Prove custody mode                  | Must remain false               |
+| `decimals`                    | Bind token units                    | Must equal rail configuration   |
+| `getNominalValue`             | Bind collateral nominal             | Normalized value must match     |
+| `getNominalValueDecimals`     | Normalize collateral nominal        | Read with nominal value         |
+| `getNominalValueCurrency`     | Bind valuation currency             | Must equal USD                  |
 
 ## Bootstrap-only calls
 
@@ -46,13 +51,19 @@ amount, expirationTimestamp, escrow, destination,
 data, operatorData, thirdPartyType
 ```
 
-The rail requires the exact collateral amount, itself as escrow, zero destination,
-empty operator data, position-bound data, and expiry after facility maturity.
+At creation, the rail requires the requested collateral amount, itself as
+escrow, zero destination, empty operator data, the `AUTHORIZED` third-party
+type, position-bound data, and expiry after facility maturity. Before repayment
+or default it repeats the identity checks, reads the current adjustment-aware
+amount, drains that amount, and requires the terminal read to return no live
+hold.
 
 ## Compatibility gate
 
 `yarn workspace @collateral-rail/foundry check:ats-abi` compiles the reduced
 interfaces and compares the required method signatures with the committed v8
-surface. This catches accidental local drift. A maintainer upgrading ATS must
-also compare the committed list with the tagged upstream artifact and record the
-probe using `docs/templates/measured-finding.md`.
+surface. The fixture records the exact upstream commit and SHA-256 digest of
+each source interface. The weekly compatibility check downloads those immutable
+sources and verifies every digest. A maintainer upgrading ATS must regenerate
+the list from the tagged upstream source and record the probe using
+`docs/templates/measured-finding.md`.

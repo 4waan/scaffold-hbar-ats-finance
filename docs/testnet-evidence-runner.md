@@ -11,8 +11,13 @@ Harness creates an ephemeral ECDSA account and supplies these process environmen
 - `HARNESS_SIGNER_ACCOUNT_ID`: Hedera account ID for the ephemeral issuer and deployer.
 - `HARNESS_SIGNER_EVM_ADDRESS`: public EVM alias for that account.
 - `HARNESS_SIGNER_PRIVATE_KEY`: raw ECDSA key used only in process memory.
+- `PYTH_API_KEY`: Pyth Hermes API key used only as a bearer header when fetching the signed update payload.
 
-The private key is never placed in a command argument, log message, deployment record, frontend variable, or repository file. The Foundry script reads it from the environment and starts the broadcast in process.
+The private key is never placed in a command argument, deployment record,
+frontend variable, or repository file. The Foundry script reads it from the
+environment and starts the broadcast in process. Forge output is captured with
+a size limit and redacts the hexadecimal, raw, and decimal key forms before any
+text reaches the terminal.
 
 The Tier 3.5 recipe itself requires these host values so Harness can fund and later sweep its signer:
 
@@ -35,9 +40,20 @@ The runner supports these public settings:
 
 The fixed origin checks prevent a configured URL from turning the runner into an internal or credential-bearing request proxy. Address overrides remain public and are validated as EVM addresses.
 
+Pyth has required authentication for Hermes requests since August 26, 2026.
+The runner fails before spending HBAR when `PYTH_API_KEY` is absent or malformed.
+It never writes the key to evidence, command arguments, logs, or repository files.
+
 ## Lifecycle
 
-The command performs these operations:
+Before spending HBAR, the command verifies that the signer key, account ID, and
+EVM address agree. It also enforces the 250 HBAR signer cap, preserves an
+execution reserve, checks the exact RPC, Mirror, and Hermes origins, confirms
+Factory, Resolver, Pyth, and HSS availability, fetches a valid Pyth payload,
+checks the required local tools, and verifies that the ignored candidate path
+is writable.
+
+After preflight, the command performs these operations:
 
 1. Confirms the Harness signer balance is no greater than 250 HBAR.
 2. Creates temporary ECDSA lender and borrower accounts with 25 HBAR each.
@@ -45,12 +61,24 @@ The command performs these operations:
 4. Deploys the Pyth adapter, financing rail, and acceptance verifier, then reserves HBAR for two HSS schedules.
 5. Fetches and submits a fresh HBAR/USD update from Hermes.
 6. Funds and accepts two small facilities with a two-minute term.
-7. Reads both ATS holds back and verifies their amount, escrow, destination, and holder.
+7. Reads both ATS holds at their acceptance blocks and verifies their holder,
+   partition, ID, amount, expiration, escrow, destination, data, operator data,
+   and third-party type.
 8. Withdraws the borrower's cash credit, repays one position, releases its hold, and withdraws the lender's credit.
-9. Waits for the other position to mature. It records HSS execution when already defaulted, or invokes public `settle` and labels the permissionless fallback.
-10. Reads final ATS roles, KYC, maturity, free balances, held balances, rail liabilities, automation reserves, backing, and both terminal position states.
-11. Confirms transaction results and real schedule entities through Mirror Node.
-12. Deletes the temporary accounts and transfers their remaining HBAR to the Harness signer on a best-effort basis.
+9. Waits for the other position to mature. If HSS already defaulted it, the
+   runner requires a Mirror-confirmed execution and submits no redundant
+   transaction. If it remains open after the grace window, the runner invokes
+   public `settle`, requires a successful receipt, and labels the permissionless
+   fallback.
+10. Refreshes every nonzero schedule after maturity and requires each scheduled
+    terminal position to have a Mirror execution timestamp.
+11. Reads final ATS roles, KYC, Clearing mode, token decimals, nominal value,
+    nominal decimals, currency, free balances, held balances, both exact
+    terminal hold records, rail liabilities, automation reserves, backing, and
+    both terminal position states at one block.
+12. Confirms transaction results and real schedule entities through Mirror
+    Node, then records lifecycle duration and the confirmed transaction count.
+13. Deletes the temporary accounts and transfers their remaining HBAR to the Harness signer on a best-effort basis.
 
 The runner rejects an unknown or missing recipe value. It passes the selected
 policy into Foundry, reads `policy()` after deployment, and refuses to write
@@ -63,7 +91,9 @@ Pyth is used only for the HBAR cash conversion. The collateral limit remains a c
 
 `yarn bootstrap:testnet` remains available to developers who prefer an encrypted Foundry account. It uses `HEDERA_OPERATOR_ADDRESS`, `LENDER_ADDRESS`, and `BORROWER_ADDRESS`. With no keystore environment values it selects the named `hedera-operator` account and allows Foundry to prompt. For unattended use, set both `HEDERA_KEYSTORE_PATH` and `HEDERA_KEYSTORE_PASSWORD_FILE`. The keystore path never crosses into the frontend.
 
-This local bootstrap produces initial deployment evidence only. The Harness command is the path that proves both terminal facilities and temporary-account cleanup.
+This local bootstrap produces initial deployment evidence only. The Harness
+command proves both terminal facilities and attempts best-effort temporary
+account cleanup after the evidence candidate is complete.
 
 ## Evidence publication
 
@@ -73,11 +103,27 @@ The runner writes `packages/foundry/deployments/testnet.json` with mode `0600`. 
 
 - every required address and actor identity is public and valid;
 - every lifecycle checkpoint has a successful Mirror-confirmed transaction;
-- there are exactly two distinct positions and holds;
+- there are exactly two distinct positions and exact hold state proofs;
 - the terminal states include one repaid and one defaulted facility;
 - at least one HSS schedule is Mirror-confirmed;
+- every scheduled terminal position has a refreshed execution timestamp;
+- lifecycle transaction labels match decoded events from the expected rail or
+  ATS token, including offer, hold, repayment, and fallback identifiers;
+- both terminal hold reads prove that no position-tagged collateral remains;
 - the Pyth publication data and final state reads are complete;
-- the recipe ID and all six immutable policy values are complete and safe;
+- the recipe ID and all six immutable policy values are complete, safe, and
+  bound to the final state proof;
+- the live verifier re-queries Mirror and RPC successfully;
 - gitleaks passes over the deployment candidate directory.
 
-Only then is `reference-testnet.json` replaced. Run the repository history and staged secret scans again before a public push.
+Schema version 3 never treats every claim as a transaction. A transaction proof
+contains its hash, consensus timestamp, result, and exact HashScan URL. A
+schedule proof contains its EVM address, Hedera schedule ID, execution timestamp
+when executed, and exact HashScan URL. A state proof contains the verified block
+number, approved RPC origin, and assertions read at that block.
+
+Publication first validates the ignored candidate, runs the live Mirror and RPC
+verifier, and scans the deployment directory. Only then does it write a
+temporary public record and atomically rename it over `reference-testnet.json`.
+A failed run leaves the pending or previously verified public record untouched.
+Run the repository history and staged secret scans again before a public push.
