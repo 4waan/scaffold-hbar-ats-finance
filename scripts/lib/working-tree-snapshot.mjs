@@ -19,7 +19,7 @@ function gitOutput(arguments_, workingDirectory) {
   return result.stdout;
 }
 
-export function workingFiles(workingDirectory = process.cwd()) {
+function workingFiles(workingDirectory = process.cwd()) {
   const output = gitOutput(
     ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
     workingDirectory,
@@ -28,7 +28,7 @@ export function workingFiles(workingDirectory = process.cwd()) {
   return [...new Set(output.split("\0").filter(Boolean))].sort();
 }
 
-export function gitStatus(workingDirectory = process.cwd()) {
+function gitStatus(workingDirectory = process.cwd()) {
   return gitOutput(
     ["status", "--porcelain=v2", "-z", "--untracked-files=all"],
     workingDirectory,
